@@ -1,6 +1,6 @@
 # 研究依据
 
-本轮直接读取了公开仓库、产品官网和 Microsoft 官方文档。以下记录的是源码、用户报告和官方功能说明，没有进行竞品操作实测或系统窗口控制测试。
+本轮最初直接读取了公开仓库、产品官网和 Microsoft 官方文档。以下公开研究记录源码、用户报告和官方功能说明，没有进行竞品操作实测；后续 Windows 受控窗口测试结果见[验收记录](VALIDATION.md)。
 
 ## 产品方向的证据
 
@@ -31,6 +31,8 @@ Loop 最初的评估针对上表中的固定提交，并对照了[正式版 1.4.
 | [DWMWINDOWATTRIBUTE](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute) | 系统隐藏状态及可见窗口边框等信息。 |
 | [SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos) | 调整位置和大小、避免激活或改变层级、读取调用失败。 |
 | [GetWindowPlacement](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowplacement) | 获取正常、最小化和最大化的位置及显示状态，为恢复提供快照。 |
+| [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook) | 在有消息循环的线程监测窗口关闭，回调需要保持有效，事件有异步交付的边界。 |
+| [ShowWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow) | 最大化到正常状态的转换，以及不激活窗口的显示方式。 |
 
 这些资料支持实现方向的可行性，不能替代真实应用中的筛选、缩放、焦点和恢复验收。WPF 单位、系统坐标及位置恢复之间的转换还需要实现代理结合官方结构说明和实测核对。
 
@@ -39,6 +41,6 @@ Loop 最初的评估针对上表中的固定提交，并对照了[正式版 1.4.
 - 用户在 Windows 上执行两窗和三窗对照任务的完整操作记录。
 - 现有多窗口命令是否已经能以同样低的成本完成任意临时多选。
 - PaneSet 的选窗面板是否减少整体操作负担，尤其是同一应用的多个窗口。
-- 实际系统窗口操作、应用最小尺寸及位置恢复的兼容性。
+- 第三方应用的最小尺寸、位置恢复及其他显示配置的兼容性。受控窗口验证已有记录，仍需实际应用试用。
 
 产品建议和验收标准分别保存在[产品定义](PRODUCT.md)与[Windows 实现建议](WINDOWS_PLAN.md)，本文件只维护来源和证据范围。

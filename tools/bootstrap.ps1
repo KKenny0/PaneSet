@@ -22,7 +22,8 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $panesetStage = Join-Path $panesetRoot '.tools/dotnet.staging'
 if (Test-Path $panesetStage) { Remove-Item $panesetStage -Recurse -Force }
 [IO.Compression.ZipFile]::ExtractToDirectory($panesetArchive, $panesetStage)
-& (Join-Path $panesetStage 'dotnet.exe') --version
-if ($LASTEXITCODE -ne 0) { throw 'The downloaded SDK cannot run on this host.' }
 Move-Item $panesetStage $panesetSdk
+$env:DOTNET_CLI_TELEMETRY_OPTOUT = '1'
+& $panesetExe --version
+if ($LASTEXITCODE -ne 0) { throw 'The downloaded SDK cannot run on this host.' }
 Remove-Item $panesetArchive

@@ -1,7 +1,7 @@
 # 两窗排布与恢复
 
 Status: ready-for-agent
-Progress: in-progress
+Progress: done
 
 用户已确认 docs/SETUP_REVIEW.md 中的配置、交付和两个测试边界。本任务是单次可运行交付，直接按 implement/tdd 推进。
 
@@ -20,7 +20,7 @@ Progress: in-progress
 
 ## 验收记录
 
-实现完成后记录测试、界面截图和限制。不用受控窗口测试替代任意第三方应用兼容性或竞品效率比较。
+已完成两窗原型。最终 16 项检查通过，构建无警告或错误，复查界面操作与正常、窄、低、最小尺寸及长标题截图。整组原始快照及部分失败下的恢复记录问题以失败到通过的真实窗口案例修正。Standards 与 Spec 人工审查完成，Advisor 架构及截图复核的建议已落实；审查限制和结果见 [VALIDATION.md](../../../docs/VALIDATION.md)。
 
 ## Comments
 
