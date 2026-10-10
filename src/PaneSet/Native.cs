@@ -11,6 +11,12 @@ internal static class Native
     [StructLayout(LayoutKind.Sequential)] internal struct Placement { public int Length, Flags, Show; public Point Min, Max; public Rect Normal; }
     internal delegate bool EnumProc(nint window, nint param);
     internal delegate void EventProc(nint hook, uint evt, nint window, int obj, int child, uint thread, uint time);
+    internal delegate bool MonitorProc(nint monitor, nint device, nint rect, nint param);
+    [DllImport("user32.dll")] internal static extern bool EnumDisplayMonitors(nint device, nint clip, MonitorProc callback, nint param);
+    [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(nint window);
+    [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(nint window);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern bool RegisterHotKey(nint window, int id, uint modifiers, uint key);
+    [DllImport("user32.dll")] internal static extern bool UnregisterHotKey(nint window, int id);
     [DllImport("user32.dll")] internal static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] internal static extern bool EnumWindows(EnumProc callback, nint param);
     [DllImport("user32.dll")] internal static extern bool IsWindow(nint window);

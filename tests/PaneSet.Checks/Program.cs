@@ -14,7 +14,7 @@ using PaneSet;
 
 namespace PaneSet.Checks;
 
-internal static class Program
+internal static partial class Program
 {
     private static readonly List<(string Name, Func<Task> Run)> Cases =
     [
@@ -24,6 +24,65 @@ internal static class Program
             Equal(new WindowRect(0, 0, 954, 1040), layout[0]);
             Equal(new WindowRect(966, 0, 954, 1040), layout[1]);
             return Task.CompletedTask;
+        }),
+        ("cross-monitor", CheckMonitors),
+        ("three-window", async () =>
+        {
+            await using var fixture = await Fixture.Start();
+            using var manager = new WindowManager();
+            var display = WindowManager.DisplayFor(fixture.Handles[0]);
+            var targets = manager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
+            var originals = targets.Select(manager.ReadState).ToArray();
+            foreach (var kind in new[] { ArrangementKind.Automatic, ArrangementKind.MainAndOthers })
+            {
+                var result = await manager.ApplyAsync(targets, display, kind);
+                if (result.Pending) result = await manager.CompletePendingAsync();
+                Equal(true, result.Success); Equal(3, result.Windows.Count);
+                var layout = LayoutEngine.Arrange(display.WorkArea, 3, kind);
+                for (int i = 0; i < 3; i++) Equal(layout[i], manager.ReadState(targets[i]).Bounds);
+                Equal(true, (await manager.UndoAsync()).Success);
+                for (int i = 0; i < 3; i++) Equal(originals[i], manager.ReadState(targets[i]));
+            }
+        }),
+        ("grid-windows", async () =>
+        {
+            await using var fixture = await Fixture.Start(9);
+            using var manager = new WindowManager();
+            var display = WindowManager.DisplayFor(fixture.Handles[0]);
+            var targets = fixture.Handles.Select(h => manager.ListWindows().Single(t => t.Handle == h)).ToArray();
+            var originals = targets.Select(manager.ReadState).ToArray();
+            var chosen = targets.Take(8).ToArray();
+            var result = await manager.ApplyAsync(chosen, display);
+            if (result.Pending) result = await manager.CompletePendingAsync();
+            Equal(true, result.Success); Equal(8, result.Windows.Count);
+            var layout = LayoutEngine.Arrange(display.WorkArea, 8);
+            CheckGeometry(display.WorkArea, layout);
+            for (int i = 0; i < 8; i++) Equal(layout[i], manager.ReadState(targets[i]).Bounds);
+            Equal(originals[8], manager.ReadState(targets[8]));
+            Equal(true, (await manager.UndoAsync()).Success);
+            for (int i = 0; i < 9; i++) Equal(originals[i], manager.ReadState(targets[i]));
+        }),
+        ("layout-many", () =>
+        {
+            var area = new WindowRect(-2560, -1440, 2559, 1399);
+            foreach (int count in new[] { 2, 3, 4, 5, 8, 12 })
+                foreach (var kind in Enum.GetValues<ArrangementKind>())
+                {
+                    var layout = LayoutEngine.Arrange(area, count, kind);
+                    Equal(count, layout.Length); CheckGeometry(area, layout);
+                }
+            return Task.CompletedTask;
+        }),
+        ("layout-too-small", async () =>
+        {
+            await using var fixture = await Fixture.Start(12);
+            using var manager = new WindowManager();
+            var display = WindowManager.DisplayFor(fixture.Handles[0]);
+            var targets = manager.ListWindows().Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
+            var originals = targets.Select(manager.ReadState).ToArray();
+            Equal(false, (await manager.ApplyAsync(targets, display, ArrangementKind.Columns)).Success);
+            Equal(false, manager.HasUndo);
+            for (int i = 0; i < targets.Length; i++) Equal(originals[i], manager.ReadState(targets[i]));
         }),
         ("enumeration", async () =>
         {
@@ -203,23 +262,41 @@ internal static class Program
             Equal(new WindowRect(-955, -100, 954, 1000), layout[1]);
             return Task.CompletedTask;
         }),
+        ("single-instance", CheckSingleInstance),
+        ("shortcut-routing", CheckShortcutRouting),
+        ("shortcuts", CheckShortcuts),
+        ("local-layout-keys", CheckLocalLayoutInput),
+        ("local-layout-routing", CheckLayoutKeys),
+        ("selection-refresh", CheckSelectionRefresh),
+        ("recent-group", CheckRecentGroup),
+        ("recent-group-noop", CheckRecentNoop),
+        ("recent-group-missing", CheckRecentMissing),
+        ("recent-group-failures", CheckRecentFailures),
+        ("recent-ui-error", CheckRecentUiError),
+        ("recent-group-exit", CheckRecentExit),
+        ("ui-many", CheckManyUi),
         ("ui", CheckUi)
     ];
 
     [STAThread]
     private static int Main(string[] args)
     {
-        if (args.Contains("--fixture")) return FixtureHost.Run();
+        Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+        if (args.Contains("--fixture")) return FixtureHost.Run(args.Length > 1 ? int.Parse(args[1]) : 3);
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         int exit = 0;
         app.Dispatcher.InvokeAsync(async () =>
         {
             var cases = args.Length == 2 && args[0] == "--case" ? Cases.Where(c => c.Name == args[1]) : Cases;
+            if (!cases.Any()) { Console.Error.WriteLine("Unknown check case."); exit = 1; }
+            int passed = 0, failed = 0, unavailable = 0;
             foreach (var test in cases)
             {
-                try { await test.Run(); Console.WriteLine("PASS " + test.Name); }
-                catch (Exception e) { Console.Error.WriteLine("FAIL " + test.Name + ": " + e); exit = 1; }
+                try { await test.Run(); passed++; Console.WriteLine("PASS " + test.Name); }
+                catch (UnavailableException e) { unavailable++; Console.WriteLine("SKIP " + test.Name + ": " + e.Message); }
+                catch (Exception e) { failed++; Console.Error.WriteLine("FAIL " + test.Name + ": " + e); exit = 1; }
             }
+            Console.WriteLine($"RESULT passed={passed}, failed={failed}, unavailable={unavailable}");
             app.Shutdown(exit);
         });
         app.Run();
@@ -273,7 +350,7 @@ internal static class Program
         var display = WindowManager.DisplayFor(fixture.Handles[0]);
         var candidates = manager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
         var originals = candidates.ToDictionary(t => t.Handle, manager.ReadState);
-        var window = new MainWindow(manager, display, candidates, fixture.Handles[0]);
+        var window = new MainWindow(manager, display, candidates, fixture.Handles[0], enableShortcuts: false);
         window.Show(); await Task.Delay(120);
         try
         {
@@ -281,14 +358,15 @@ internal static class Program
             var second = checks.Single(c => AutomationProperties.GetName(c) == "采购合同 · 修订稿");
             ((IToggleProvider)new CheckBoxAutomationPeer(second).GetPattern(PatternInterface.Toggle)).Toggle();
             await Task.Delay(80);
-            Equal(true, ButtonNamed(window, "排布这两扇窗口").IsEnabled);
+            Equal(true, ButtonNamed(window, "排布所选窗口").IsEnabled);
             var third = checks.Single(c => AutomationProperties.GetName(c) == "报价清单");
             ((IToggleProvider)new CheckBoxAutomationPeer(third).GetPattern(PatternInterface.Toggle)).Toggle();
-            Equal(false, third.IsChecked == true);
+            Equal(true, third.IsChecked == true);
+            ((IToggleProvider)new CheckBoxAutomationPeer(third).GetPattern(PatternInterface.Toggle)).Toggle();
             foreach (var size in new[] { (820d, 730d, "paneset-normal"), (600d, 730d, "paneset-narrow"), (820d, 600d, "paneset-short"), (600d, 600d, "paneset-minimum") })
             {
                 window.Width = size.Item1; window.Height = size.Item2; await Task.Delay(60);
-                var button = ButtonNamed(window, "排布这两扇窗口");
+                var button = ButtonNamed(window, "排布所选窗口");
                 window.UpdateLayout();
                 var point = button.TranslatePoint(new(0, 0), window);
                 var client = ClientSize(window);
@@ -297,10 +375,10 @@ internal static class Program
                 Screenshot(window, size.Item3);
             }
             var search = Elements<TextBox>(window).Single(); search.Text = "修订"; await Task.Delay(60);
-            Equal(1, Elements<CheckBox>(window).Count()); Equal(true, ButtonNamed(window, "排布这两扇窗口").IsEnabled);
+            Equal(1, Elements<CheckBox>(window).Count()); Equal(true, ButtonNamed(window, "排布所选窗口").IsEnabled);
             search.Text = ""; await Task.Delay(60);
             Invoke(ButtonNamed(window, "交换左右")); await Task.Delay(60);
-            Invoke(ButtonNamed(window, "排布这两扇窗口"));
+            Invoke(ButtonNamed(window, "排布所选窗口"));
             await Until(() => window.WindowState == System.Windows.WindowState.Minimized);
             var expected = LayoutEngine.TwoColumns(display.WorkArea);
             Equal(expected[0], manager.ReadState(candidates.Single(t => t.Handle == fixture.Handles[1])).Bounds);
@@ -309,11 +387,11 @@ internal static class Program
             Invoke(ButtonNamed(window, "恢复上次排布")); await Until(() => !manager.HasUndo && !manager.HasPending);
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
         }
-        finally { window.Close(); }
+        finally { window.Exit(); }
         await fixture.Send("long");
         using var longManager = new WindowManager();
-        var longWindow = new MainWindow(longManager, display, longManager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray()) { Width = 600, Height = 600 };
-        longWindow.Show(); await Task.Delay(120); Screenshot(longWindow, "paneset-long-title"); longWindow.Close();
+        var longWindow = new MainWindow(longManager, display, longManager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray(), enableShortcuts: false) { Width = 600, Height = 600 };
+        longWindow.Show(); await Task.Delay(120); Screenshot(longWindow, "paneset-long-title"); longWindow.Exit();
     }
 
     private sealed class Fixture : IAsyncDisposable
@@ -321,11 +399,11 @@ internal static class Program
         private readonly Process process;
         public nint[] Handles { get; }
         private Fixture(Process process, nint[] handles) { this.process = process; Handles = handles; }
-        public static async Task<Fixture> Start()
+        public static async Task<Fixture> Start(int count = 3)
         {
             var start = new ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardInput = true, RedirectStandardOutput = true };
             if (Path.GetFileNameWithoutExtension(start.FileName).Equals("dotnet", StringComparison.OrdinalIgnoreCase)) start.ArgumentList.Add(Assembly.GetExecutingAssembly().Location);
-            start.ArgumentList.Add("--fixture");
+            start.ArgumentList.Add("--fixture"); start.ArgumentList.Add(count.ToString());
             var process = Process.Start(start)!;
             try
             {

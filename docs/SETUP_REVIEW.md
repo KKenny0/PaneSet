@@ -111,7 +111,7 @@
 - 当前 PATH 和四个常见安装目录未发现 `dotnet`，没有安装 SDK。
 - Microsoft 发布元数据提供 .NET 10 的 Windows x64 SDK ZIP；本轮确认下载地址返回成功，归档约 301 MB，元数据带 SHA-512 校验值。
 - 建议下一阶段先下载归档并校验 SHA-512，校验通过后解压到项目的 `.tools/dotnet/`，使用明确路径构建。
-- 当前 Windows 10 Pro 22H2 不在 .NET 10 官方支持的系统列表内。SDK 和原型能否在这台主机运行需要实际验证，不能把 .NET LTS 期限等同于操作系统支持期限。来源及影响见 [Windows 方案](WINDOWS_PLAN.md#当前环境检查) 和 [研究依据](REFERENCES.md)。
+- 当前 Windows 10 Pro 22H2 不在 .NET 10 官方支持的系统列表内。SDK 和原型能否在这台主机运行需要实际验证，不能把 .NET LTS 期限等同于操作系统支持期限。来源及影响见 [Windows 方案](WINDOWS_PLAN.md#验收与环境) 和 [研究依据](REFERENCES.md)。
 
 ## 确认后的执行顺序
 

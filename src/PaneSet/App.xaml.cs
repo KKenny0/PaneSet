@@ -6,6 +6,10 @@ namespace PaneSet;
 
 public partial class App : Application
 {
+    private Mutex? instance;
+    private EventWaitHandle? reopen;
+    private DispatcherTimer? reopenTimer;
+
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -17,19 +21,21 @@ public partial class App : Application
             Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => Shutdown(0)));
             return;
         }
+        reopen = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\PaneSet.Reopen");
+        instance = new Mutex(true, "Local\\PaneSet.Instance", out bool first);
+        if (!first) { reopen.Set(); Shutdown(0); return; }
         WindowManager? manager = null;
         try
         {
             nint foreground = WindowManager.Foreground;
             manager = new WindowManager();
             var display = WindowManager.DisplayFor(foreground);
-            var candidates = manager.ListWindows(display);
-            if (!candidates.Any(t => t.Handle == foreground))
-            {
-                display = WindowManager.DisplayFor(0);
-                candidates = manager.ListWindows(display);
-            }
-            new MainWindow(manager, display, candidates, foreground).Show();
+            var candidates = manager.ListWindows();
+            if (!candidates.Any(t => t.Handle == foreground)) display = WindowManager.DisplayFor(0);
+            var window = new MainWindow(manager, display, candidates, foreground);
+            window.Show();
+            reopenTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Normal,
+                (_, _) => { if (reopen.WaitOne(0)) window.OpenForForeground(WindowManager.Foreground, toggle: false); }, Dispatcher);
         }
         catch (Exception exception)
         {
@@ -37,5 +43,11 @@ public partial class App : Application
             MessageBox.Show("无法打开 PaneSet：" + exception.Message, "PaneSet", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
         }
+    }
+
+    protected override void OnExit(ExitEventArgs e)
+    {
+        reopenTimer?.Stop(); reopen?.Dispose(); instance?.Dispose();
+        base.OnExit(e);
     }
 }

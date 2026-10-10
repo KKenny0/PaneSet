@@ -9,7 +9,7 @@
 | [Loop 仓库快照](https://github.com/mrkai77/loop/tree/1ce7e72e2e20e7ebeda70869fe4cafbb6cf8ad96) | 查看了默认 `develop` 分支的 README、演示、输入处理、设置、布局和窗口执行代码。 | 径向方向选择和提交前预览值得参考。开发分支不能直接代表正式版行为。 |
 | [Loop #988](https://github.com/mrkai77/Loop/issues/988) | 用户报告多窗组合需要重复执行动作，并提出先选择窗口再一起排布。 | 有其他用户报告类似摩擦，可以研究临时多窗选择，不能据此证明市场需求。 |
 | [Loop #324](https://github.com/mrkai77/Loop/issues/324) | 请求多窗口命令，并引用 Rectangle Pro 的已有能力。 | 批量调窗本身已有替代方案。 |
-| [Moom](https://manytricks.com/moom/)、[Moom 帮助](https://manytricks.com/moom/help/) | 官方说明支持保存布局，作用于指定应用窗口或最近使用的若干窗口。 | macOS 已有多窗布局能力，需实测任意临时窗口组的选择成本。 |
+| [Moom](https://manytricks.com/moom/)、[Moom 帮助](https://manytricks.com/moom/help/) | 官方说明支持保存布局，按应用匹配，或按最前窗口、窗口与区域的空间距离填入；控制器支持局部命令。 | macOS 已有多窗布局能力，需实测任意临时窗口组的选择成本。最前窗口不直接等同于按使用时间排序。 |
 | [Rectangle Pro](https://rectangleapp.com/pro) | 官方明确列出多窗口快捷键、工作区安排和显示器连接变化触发。 | 不能把它仅描述成固定布局工具，也不能宣称批量排布是新功能。 |
 | [Swish](https://highlyopinionated.co/swish/) | 官方展示标题栏手势和拖动分隔线同时调整多个窗口。 | 手势和相邻窗口缩放都已有成熟产品。 |
 | [FancyZones](https://learn.microsoft.com/en-us/windows/powertoys/fancyzones) | 官方说明自定义分区、相对布局、快捷键、显示变化适配和命令行。 | Windows 首版需要与原生排列和现有分区工具比较。 |
@@ -17,6 +17,12 @@
 | [AquaSnap](https://www.nurgo-software.com/products/aquasnap) | 官方说明相邻窗口联动缩放、磁性对齐和组移动。 | Windows 上的窗口联动也不是未被覆盖的功能。 |
 
 Loop 最初的评估针对上表中的固定提交，并对照了[正式版 1.4.2](https://github.com/mrkai77/loop/releases/tag/1.4.2)。那次评估是静态源码和演示分析，未运行 macOS 应用。继续开发 PaneSet 时，优先使用用户已明确的对照场景，不把 Loop 的一般设置改进建议自动加入产品范围。
+
+## 2026-10-10 快捷交互补充调研
+
+用户要求先调查现有产品，再讨论 Q2 的多窗与快捷键组合。新增读取 Windows Snap、DisplayFusion Window Position Profiles，以及 Moom 的 Layout、Keyboard 和 Hot Keys 详细章节；重新读取 Rectangle Pro、FancyZones、Workspaces、AquaSnap 及 Loop 开发分支说明。Rectangle Pro 的组绑定与三窗顺序另核对开发者回复，并标明历史日期。
+
+具体来源、访问日期、适用平台及交互边界见[快捷交互调研](RESEARCH_SHORTCUTS.md)。本次仍未进行竞品操作实测，不能据文档说明宣称完整任务更快。Q1、Q2 收敛范围已确认并按两个增量实现；运行证据与未验证边界见[验收记录](VALIDATION.md)。
 
 ## Windows 技术资料
 
