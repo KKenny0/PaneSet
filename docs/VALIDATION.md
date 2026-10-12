@@ -1,5 +1,17 @@
 # Windows 多窗原型验收
 
+## ui-many：测试宿主应用名假设修复
+
+已定位前轮 `ui-many` 的“Expected 8, got 0”：用例搜索硬编码 `PaneSet.Checks`，而 `Fixture.Start` 通过 `Environment.ProcessPath` 启动测试窗口。用 `dotnet PaneSet.Checks.dll` 运行时，fixture 的应用名为 `dotnet`；通过 `PaneSet.Checks.exe` 运行时才为 `PaneSet.Checks`。主面板按真实应用名过滤，前一种启动方式匹配到 0 项，因此渲染出的已选复选框为 0；不是 B 选择规则重构导致窗口丢失。
+
+复现与对照：原完整用例在 dotnet 宿主下连续 **2 次 FAIL**（各约 2.6 秒）。临时缩减至“创建 8 窗、全选、搜索、检查”，搜索前 8 项通过，搜索后仍 FAIL。记录宿主/候选应用名/筛选数据数量后，仅切换启动方式：dotnet 为 `apps=dotnet, filteredItems=0` 且 FAIL；apphost 为 `apps=PaneSet.Checks, filteredItems=8` 且 PASS。这一区别发生在筛选数据层，无需延长布局等待。
+
+修复仅修改 `InteractionChecks.CheckManyUi`：以 `Path.GetFileNameWithoutExtension(Environment.ProcessPath!)` 作为应用搜索词，与 fixture 实际启动宿主一致；保留原完整流程及 8 项断言。临时缩减用例和 `[DEBUG-ui-many-host]` 输出均已移除，生产代码不变。最终 Release 构建 **0 警告 / 0 错误**；原完整 `ui-many` 在 **dotnet 与 apphost 两种方式均 PASS，退出码均为 0**，各约 3 秒，覆盖排布、恢复、搜索后选组、不同尺寸与操作可达。未重跑无关全套，历史 48/6/3 结果原样保留；本项根因已解决，其他稳定性/配置失败仍独立开放。
+
+复现入口：`powershell.exe -NoProfile -File C:/Users/Administrator/AppData/Local/Temp/paneset-ui-many-diagnosis/run.ps1 -HostMode dotnet`（另一方式为 `-HostMode apphost`）。该目录保存独立 build、截图、`baseline-1.log`、`baseline-2.log`、`minimal.log`、`host-dotnet.log`、`host-apphost.log`、`fixed-dotnet.log`、`fixed-apphost.log` 及 `final-build.log`。所有生成物位于此临时目录，没有覆盖仓库历史截图。
+
+同会话自查：测试搜索输入修正，与既有 fixture 启动机制一致，未改生产筛选、测试等待、计数断言或原生输入保护。现有 ui-many 即回归用例，双宿主入口分别验证；没有新增框架或全局配置。当前没有后台测试在运行。
+
 ## B 选择规则重构：桌面恢复后的补验
 
 用户确认桌面可用后，基于 `c1df2d9` 的生产源码重建并补验；本轮生产代码未变。Release 构建仍为 **0 警告 / 0 错误**。测试侧仅增强 OverviewChecks 的失败证据：卡片实际鼠标事件及勾选变化、会话完成原因和窗口状态；尺寸用例在打开总览前检查 fixture 几何未被准备点击改变，并在读取已关闭宿主前报告退出原因。未放宽所有权/按键保护、延长等待或加入自动重试。

@@ -65,3 +65,9 @@ quick-cancel-undo 使用 fixture 前台和严格命中建立会话，以控件�
 测试侧为 overview 加入点击事件/勾选变化及会话退出诊断，尺寸用例增加打开总览前 fixture 几何检查及宿主已关闭的提前报告。仅增强证据，不更改等待、断言或输入保护；生产代码不变。全套后的定向 overview 与 overview-size-ui 均有完整 PASS，覆盖真实点击、顺序、搜索、低高度、排布/Undo 和 2/3/8 窗尺寸。期间的失败仍保留，不能把后续通过当作根因修复。完整失败表、日志及产物版本边界见 docs/VALIDATION.md 的“桌面恢复后的补验”。本次停止桌面测试，保持 needs-info / in-progress，不宣称稳定性全通过。
 
 这次总览尺寸已获得用户正向反馈且自动界面检查通过。稳定性收尾仍未全部完成，暂不声称可发布。
+
+### ui-many 根因与修复
+
+用户指定 diagnosing-bugs ui-many 后，原完整用例在 dotnet 宿主下两次稳定复现 Expected 8, got 0。最小用例确认全选后的 8 项在搜索时被筛掉；只切换启动方式的对照确认 fixture 的应用名分别为 dotnet / PaneSet.Checks，硬编码搜索 PaneSet.Checks 仅适用于后者。这是测试启动方式假设错误，不是生产选组丢失或布局时序故障。
+
+仅将 CheckManyUi 的搜索词改为宿主实际进程名，恢复全部原流程并移除临时诊断。Release 构建 0 警告/错误；完整 ui-many 在 dotnet 和 apphost 下均 PASS、退出码 0。日志与产物独立保存到 Temp/paneset-ui-many-diagnosis，详情见 docs/VALIDATION.md 顶部。本项已解决；任务整体继续保持 needs-info / in-progress，其余配置和间歇输入失败未因此关闭。

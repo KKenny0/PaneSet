@@ -472,7 +472,8 @@ internal static partial class Program
             Invoke(ButtonNamed(window, "恢复上次排布")); await Until(() => !manager.HasUndo && !manager.HasPending);
             foreach (var box in Elements<CheckBox>(window).Where(b => b.IsChecked != true && fixture.Handles.Contains(((WindowRow)b.DataContext).Target.Handle))) Toggle(box);
             layout.SelectedIndex = 0;
-            ((TextBox)window.FindName("SearchBox")).Text = "PaneSet.Checks"; await Task.Delay(80);
+            // Fixture.Start uses this host executable: apphost and `dotnet ...dll` have different process names.
+            ((TextBox)window.FindName("SearchBox")).Text = Path.GetFileNameWithoutExtension(Environment.ProcessPath!); await Task.Delay(80);
             Equal(8, Elements<CheckBox>(window).Count(b => b.IsChecked == true));
             window.Width = 820; window.Height = 730; await Task.Delay(100); Screenshot(window, "paneset-grid");
             window.Width = 600; window.Height = 600; await Task.Delay(100); Screenshot(window, "paneset-grid-minimum");
