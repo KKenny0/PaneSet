@@ -1,5 +1,19 @@
 # Windows 多窗原型验收
 
+## B 总览选择规则集中（架构重构）
+
+新增 `OverviewSelection`，集中本次固定候选排序、有序选组、身份刷新、搜索匹配、编号、布局预览与确认资格。`QuickSelectWindow` 仅转交选择/取消/移位及原生观察结果，读取同一份状态绘制；不再维护自己的 selected/invalid 集合、可写编号或确认资格缓存，也不再依赖主面板的 `WindowRow`。原生执行、焦点保护、DWM 生命周期和 Undo 路径保持原职责。
+
+用户确认的规则已同步到规格：失效期间保留成员及顺序并禁确认；同一身份恢复合格后自动恢复有效性，其他条件满足时恢复确认资格，仍需用户最终确认。主动取消的成员不自动选回，再选加入末尾；不同身份不能替代。此项澄清既有刷新行为，没有新增“曾失效待确认”状态。
+
+新规则按 TDD 分三轮建立：排序/选择顺序、身份刷新/搜索、布局确认资格，每轮先记录缺失接口的编译失败，再实现并通过。最终独立 Release 构建 **0 警告 / 0 错误**；不依赖桌面的 **8 PASS / 0 FAIL / 0 unavailable**：`selection-order`、`overview-selection-refresh`、`selection-eligibility`、`layout`、`layout-many`、`layout-invalid`、`layout-negative`、`overview-size`。覆盖初始 Y/X/稳定同位排序、前台优先、移位/取消再加入、标题与应用名搜索、完整身份各字段失配、同身份恢复、失效后主动取消及尺寸边界。总览集成检查改为读取显示标题、编号和卡片位置，不再读取 `WindowRow` 或新 module 的内部状态。
+
+桌面定向 `overview` **1 FAIL**：首次 fixture 所有权检查命中外部窗口，`actualPid=19500`、`actualClass=Windows.UI.Core.CoreWindow`，拒绝点击；随后只读查询确认该进程为 `LockApp`。按约束停止所有桌面检查，没有解锁、释放用户按键、结束用户 PaneSet 或放宽保护。该失败发生在最终审查调整之前且尚未进入总览，不能作为最终产物的 UI 验证；最终源码只重建和运行上述 8 项无桌面检查。完整入口现为 **57 项，本轮完整套件未运行**，真实卡片/Enter、DWM、取消/Undo 和最终排布回归仍待桌面可用后补验。历史输入与配置失败仍开放。
+
+构建目录：`C:/Users/Administrator/AppData/Local/Temp/paneset-selection-build`。日志：`artifacts/selection-module-build.log`、`artifacts/selection-module-pure-checks.log`、`artifacts/selection-module-overview-blocked.log`。
+
+审查基线为 `54ed16572909c132690103d1a186c9efd9ffe317`，依据 AGENTS、PRODUCT、WINDOWS_PLAN 和 current-screen-selection 规格及本次确认。Standards：同会话自查无未解决代码发现；Spec：同会话自查无未解决实现偏差，桌面验证未完成。无可用子代理，未执行独立双代理审查；Advisor 因与执行模型相同禁用，不能计作外部复核。本轮仅本地提交，不推送或发布。
+
 ## 输入诊断与取消恢复独立验证
 
 新增测试侧诊断：主面板准备失败记录 IsLoaded、可见/最小化状态、WPF/native Topmost、外框、前台句柄/类和焦点；Alt+1 失败记录前后状态、实际收到的 PreviewKeyDown/Up、修饰键、handled 及会话结束原因。Alt+1 注入前检查真实前台、会话就绪、键盘焦点及物理按键是否已有按下；未放宽原点击保护、延长等待或修改生产激活策略。

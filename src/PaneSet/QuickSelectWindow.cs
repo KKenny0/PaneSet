@@ -16,20 +16,20 @@ internal sealed class QuickSelectWindow : Window
 {
     private readonly WindowManager manager;
     private readonly DisplayArea display;
-    private readonly WindowTarget[] captured;
-    private readonly List<WindowRow> rows = [], selected = [];
-    private readonly HashSet<WindowRow> invalid = [];
+    private readonly OverviewSelection group;
+    private IReadOnlyList<OverviewSelection.Item> rows => group.Candidates;
+    private IReadOnlyList<OverviewSelection.Item> selected => group.Selected;
     private sealed class Card
     {
         public required CheckBox Check;
         public required Border Slot;
-        public required TextBlock Note, Fallback;
+        public required TextBlock Title, Note, Fallback;
         public WindowThumbnail? Thumbnail;
     }
-    private readonly Dictionary<WindowRow, Card> controls = [];
+    private readonly Dictionary<OverviewSelection.Item, Card> controls = [];
     private readonly WrapPanel candidates = new();
     private readonly StackPanel selection = new();
-    private readonly Dictionary<WindowRow, (TextBlock Title, Button Up, Button Down)> selectedControls = [];
+    private readonly Dictionary<OverviewSelection.Item, (TextBlock Title, Button Up, Button Down)> selectedControls = [];
     private readonly ScrollViewer candidateScroll, selectedScroll;
     private readonly Canvas preview = new() { Height = 120, IsHitTestVisible = false, ClipToBounds = true };
     private readonly TextBox search = new() { MinHeight = 36, Padding = new Thickness(8), Margin = new Thickness(0, 8, 0, 12) };
@@ -37,7 +37,7 @@ internal sealed class QuickSelectWindow : Window
     private readonly ComboBox layout = new() { MinHeight = 36, Margin = new Thickness(0, 8, 0, 8) };
     private readonly Button apply;
     private readonly DispatcherTimer refresh;
-    private bool finished, updating, layoutUsable, thumbnailUpdate;
+    private bool finished, updating, thumbnailUpdate;
     public bool IsReady { get; private set; }
     public event Action<QuickSelectionResult>? Completed;
     public ArrangementKind Kind => layout.SelectedItem is ArrangementKind kind ? kind : ArrangementKind.Automatic;
@@ -46,11 +46,9 @@ internal sealed class QuickSelectWindow : Window
         nint foreground, ArrangementKind initialKind)
     {
         this.manager = manager; this.display = display;
-        // Capture and sort once. Refreshes may update titles, never reshuffle a user's targets.
-        captured = targets.Select((target, index) => (target, index,
-                bounds: manager.TryReadOnScreen(target, display, out var state) ? state!.Bounds : new WindowRect(int.MaxValue, int.MaxValue, 0, 0)))
-            .OrderBy(x => x.target.Handle == foreground ? 0 : 1).ThenBy(x => x.bounds.Y).ThenBy(x => x.bounds.X).ThenBy(x => x.index)
-            .Select(x => x.target).ToArray();
+        group = new OverviewSelection(targets.Select(target => (target,
+            manager.TryReadOnScreen(target, display, out var state) ? state!.Bounds : new WindowRect(int.MaxValue, int.MaxValue, 0, 0))),
+            foreground, display.WorkArea);
         Title = "PaneSet · 本屏窗口总览"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false; Topmost = true; WindowStartupLocation = WindowStartupLocation.Manual;
         Background = new SolidColorBrush(Color.FromRgb(244, 245, 241)); FontFamily = reference.FontFamily; FontSize = 14;
@@ -88,17 +86,14 @@ internal sealed class QuickSelectWindow : Window
         apply = MakeButton("排布 · Enter", "确认本屏选窗", (_, _) => Submit()); buttons.Children.Add(apply);
         buttons.Children.Add(MakeButton("取消 · Esc", "取消本屏选窗", (_, _) => Finish(false, "已取消，已有布局与恢复记录保留。")));
         actions.Children.Add(buttons); status.FontSize = 12; actions.Children.Add(status);
-        updating = true;
-        foreach (var target in captured) AddRow(target);
-        if (rows.FirstOrDefault(r => r.Target.Handle == foreground) is { } first) first.Selected = true;
-        updating = false;
+        foreach (var row in rows) AddRow(row);
         refresh = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, (_, _) => RefreshCandidates(), Dispatcher);
         SourceInitialized += (_, _) =>
         {
             var handle = new WindowInteropHelper(this).Handle;
             // Move the hidden HWND onto the target monitor before reading its effective DPI.
             Native.SetWindowPos(handle, 0, display.WorkArea.X, display.WorkArea.Y, 0, 0, 0x15);
-            var bounds = InitialBounds(display.WorkArea, captured.Length, Native.GetDpiForWindow(handle) / 96d);
+            var bounds = InitialBounds(display.WorkArea, rows.Count, Native.GetDpiForWindow(handle) / 96d);
             Native.SetWindowPos(handle, 0, bounds.X, bounds.Y, bounds.Width, bounds.Height, 0x14);
         };
         SizeChanged += (_, _) =>
@@ -168,21 +163,22 @@ internal sealed class QuickSelectWindow : Window
         { if (foreground == own) return true; foreground = Native.GetWindow(foreground, 4); }
         return false;
     }
-    private void AddRow(WindowTarget target)
+    private void AddRow(OverviewSelection.Item row)
     {
-        var row = new WindowRow(target, Changed); rows.Add(row);
         var checkbox = new CheckBox { DataContext = row, Width = 280, Height = 270, Margin = new Thickness(5), Padding = new Thickness(8),
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Background = Brushes.White };
-        checkbox.SetBinding(CheckBox.IsCheckedProperty, new Binding(nameof(WindowRow.Selected)) { Mode = BindingMode.TwoWay });
+        checkbox.IsChecked = row.Selected;
+        checkbox.Checked += (_, _) => Choose(row, true);
+        checkbox.Unchecked += (_, _) => Choose(row, false);
         var content = new Grid(); content.RowDefinitions.Add(new() { Height = new GridLength(150) }); content.RowDefinitions.Add(new()); content.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var fallback = new TextBlock { Text = "内容预览不可用\n仍可按标题选择", TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
         var slot = new Border { Background = new SolidColorBrush(Color.FromRgb(230, 235, 228)), Child = fallback, IsHitTestVisible = false };
         content.Children.Add(slot);
         var title = new TextBlock { TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 8, 0, 4) };
-        title.SetBinding(TextBlock.TextProperty, new Binding("Target.Title")); Grid.SetRow(title, 1); content.Children.Add(title);
+        title.Text = row.Target.Title; Grid.SetRow(title, 1); content.Children.Add(title);
         var note = new TextBlock { FontSize = 12, Foreground = Brushes.DarkSlateGray, TextWrapping = TextWrapping.Wrap };
         Grid.SetRow(note, 2); content.Children.Add(note);
-        checkbox.Content = content; candidates.Children.Add(checkbox); controls[row] = new Card { Check = checkbox, Slot = slot, Note = note, Fallback = fallback };
+        checkbox.Content = content; candidates.Children.Add(checkbox); controls[row] = new Card { Check = checkbox, Slot = slot, Title = title, Note = note, Fallback = fallback };
     }
     private void SizeCards()
     {
@@ -194,25 +190,25 @@ internal sealed class QuickSelectWindow : Window
     }
     private void Filter()
     {
+        var visible = group.Filter(search.Text).ToHashSet();
         foreach (var row in rows)
         {
-            bool match = (row.Target.Title + " " + row.Target.Application).Contains(search.Text.Trim(), StringComparison.CurrentCultureIgnoreCase);
+            bool match = visible.Contains(row);
             controls[row].Check.Visibility = match ? Visibility.Visible : Visibility.Collapsed;
         }
         empty.Visibility = controls.Values.Any(c => c.Check.Visibility == Visibility.Visible) ? Visibility.Collapsed : Visibility.Visible;
         UpdateThumbnails();
     }
-    private void Changed(WindowRow row)
+    private void Choose(OverviewSelection.Item row, bool value)
     {
-        if (row.Selected) selected.Add(row); else selected.Remove(row);
-        if (!updating) RefreshCandidates();
+        if (updating) return;
+        group.SetSelected(row, value);
+        RefreshCandidates();
     }
-    private void Move(WindowRow row, int delta)
+    private void Move(OverviewSelection.Item row, int delta)
     {
-        int index = selected.IndexOf(row), next = index + delta;
-        if (index < 0 || next < 0 || next >= selected.Count) return;
         var focused = Keyboard.FocusedElement as UIElement;
-        selected.RemoveAt(index); selected.Insert(next, row); RefreshCandidates();
+        group.Move(row, delta); RefreshCandidates();
         if (IsReady && ContainsForeground() && focused?.IsEnabled == true) focused.Focus();
     }
     private void RefreshCandidates()
@@ -223,31 +219,28 @@ internal sealed class QuickSelectWindow : Window
         {
             if (!WindowManager.ListDisplays().Any(d => d.Handle == display.Handle && d.WorkArea == display.WorkArea))
             { Finish(false, "目标屏幕或工作区域已改变，请重新进入选窗。", failed: true); return; }
-            var current = manager.ListWindows(display).Where(t => captured.Any(c => SameIdentity(c, t))).ToArray();
-            invalid.Clear(); updating = true;
+            group.Refresh(manager.ListWindows(display));
+            updating = true;
             try
             {
                 foreach (var row in rows)
                 {
-                    var value = current.FirstOrDefault(t => SameIdentity(row.Target, t));
-                    if (value != null) row.RefreshTarget(value); else invalid.Add(row);
+                    var control = controls[row];
+                    control.Check.IsChecked = row.Selected;
+                    control.Title.Text = row.Target.Title;
+                    AutomationProperties.SetName(control.Check, row.Target.Title); control.Check.ToolTip = row.Target.Title;
+                    control.Check.IsEnabled = row.IsValid || row.Selected;
+                    control.Note.Text = (row.Selected ? row.Order + " · " : "") + row.Target.Application + (!row.IsValid ? " · 已失效" : "");
+                    control.Check.Background = row.Selected ? new SolidColorBrush(Color.FromRgb(212, 228, 208)) : Brushes.White;
+                    if (!row.IsValid) { control.Thumbnail?.Dispose(); control.Thumbnail = null; control.Fallback.Text = "窗口已失效"; }
+                    else
+                    {
+                        control.Fallback.Text = "内容预览不可用\n仍可按标题选择";
+                        control.Thumbnail ??= new WindowThumbnail(new WindowInteropHelper(this).Handle, row.Target.Handle);
+                    }
                 }
             }
             finally { updating = false; }
-            foreach (var row in rows)
-            {
-                var control = controls[row]; row.Order = selected.IndexOf(row) + 1;
-                AutomationProperties.SetName(control.Check, row.Target.Title); control.Check.ToolTip = row.Target.Title;
-                control.Check.IsEnabled = !invalid.Contains(row) || row.Selected;
-                control.Note.Text = (row.Selected ? row.Order + " · " : "") + row.Target.Application + (invalid.Contains(row) ? " · 已失效" : "");
-                control.Check.Background = row.Selected ? new SolidColorBrush(Color.FromRgb(212, 228, 208)) : Brushes.White;
-                if (invalid.Contains(row)) { control.Thumbnail?.Dispose(); control.Thumbnail = null; control.Fallback.Text = "窗口已失效"; }
-                else
-                {
-                    control.Fallback.Text = "内容预览不可用\n仍可按标题选择";
-                    control.Thumbnail ??= new WindowThumbnail(new WindowInteropHelper(this).Handle, row.Target.Handle);
-                }
-            }
             RenderSelection(); Filter(); SizeCards(); RenderPreview(); UpdateThumbnails();
             if (IsReady && ContainsForeground() && !IsKeyboardFocusWithin) search.Focus();
         }
@@ -266,15 +259,15 @@ internal sealed class QuickSelectWindow : Window
                 var actions = new WrapPanel(); panel.Children.Add(actions);
                 var up = MakeButton("前移", "前移 · " + row.Target.Title, (_, _) => Move(row, -1)); actions.Children.Add(up);
                 var down = MakeButton("后移", "后移 · " + row.Target.Title, (_, _) => Move(row, 1)); actions.Children.Add(down);
-                actions.Children.Add(MakeButton("取消选择", "取消选择 · " + row.Target.Title, (_, _) => row.Selected = false));
+                actions.Children.Add(MakeButton("取消选择", "取消选择 · " + row.Target.Title, (_, _) => Choose(row, false)));
                 selectedControls[row] = (title, up, down); selection.Children.Add(panel);
             }
-            var controls = selectedControls[row]; controls.Title.Text = $"{row.Order} · {row.Target.Title}" + (invalid.Contains(row) ? " · 已失效，请取消该成员" : "");
-            controls.Up.IsEnabled = selected.IndexOf(row) > 0; controls.Down.IsEnabled = selected.IndexOf(row) < selected.Count - 1;
+            var controls = selectedControls[row]; controls.Title.Text = $"{row.Order} · {row.Target.Title}" + (!row.IsValid ? " · 已失效，可取消或等待恢复" : "");
+            controls.Up.IsEnabled = row.Order > 1; controls.Down.IsEnabled = row.Order < selected.Count;
             AutomationProperties.SetName(controls.Up, "前移 · " + row.Target.Title); AutomationProperties.SetName(controls.Down, "后移 · " + row.Target.Title);
         }
         foreach (var panel in selection.Children.OfType<StackPanel>().ToArray())
-            if (!selected.Contains((WindowRow)panel.Tag)) selection.Children.Remove(panel);
+            if (!selected.Contains((OverviewSelection.Item)panel.Tag)) selection.Children.Remove(panel);
         for (int i = 0; i < selected.Count; i++)
         {
             var panel = selection.Children.OfType<StackPanel>().Single(p => p.Tag == selected[i]);
@@ -296,7 +289,7 @@ internal sealed class QuickSelectWindow : Window
             {
                 var card = pair.Value;
                 bool available = card.Thumbnail?.Update(Physical(card.Slot), viewport,
-                    card.Check.IsVisible && !invalid.Contains(pair.Key) && !layout.IsDropDownOpen) == true;
+                    card.Check.IsVisible && pair.Key.IsValid && !layout.IsDropDownOpen) == true;
                 card.Fallback.Visibility = available ? Visibility.Hidden : Visibility.Visible;
             }
         }
@@ -315,29 +308,22 @@ internal sealed class QuickSelectWindow : Window
     private void ReleaseThumbnails() { foreach (var card in controls.Values) card.Thumbnail?.Dispose(); }
     private void RenderPreview()
     {
-        preview.Children.Clear(); layoutUsable = false;
-        bool invalidSelection = selected.Any(invalid.Contains);
+        preview.Children.Clear();
+        var result = group.Evaluate(Kind);
         summary.Text = $"已选 {selected.Count} 扇 / 本屏 {rows.Count} 扇";
-        status.Text = invalidSelection ? "成员已失效，请明确取消或重新选择。" : selected.Count < 2 ? "至少选择两扇窗口。" : "编号对应顺序。Enter 确认，Esc 取消。";
-        try
+        status.Text = result.Message;
+        double factor = Math.Min(Math.Max(1, preview.ActualWidth) / display.WorkArea.Width, preview.Height / display.WorkArea.Height);
+        for (int i = 0; i < result.Areas.Count; i++)
         {
-            var areas = LayoutEngine.Arrange(display.WorkArea, Math.Max(2, selected.Count), Kind);
-            layoutUsable = selected.Count >= 2 && !invalidSelection && areas.All(r => r.Width >= 240 && r.Height >= 160);
-            if (selected.Count >= 2 && !areas.All(r => r.Width >= 240 && r.Height >= 160)) status.Text = "目标窗口尺寸过小，请减少选择或改用网格。";
-            double factor = Math.Min(Math.Max(1, preview.ActualWidth) / display.WorkArea.Width, preview.Height / display.WorkArea.Height);
-            for (int i = 0; i < selected.Count && !invalidSelection; i++)
-            {
-                var rect = areas[i];
-                var cell = new Border { Width = rect.Width * factor, Height = rect.Height * factor,
-                    Background = new SolidColorBrush(Color.FromRgb(185, 208, 174)), BorderBrush = Brushes.SeaGreen, BorderThickness = new Thickness(1),
-                    Child = new TextBlock { Text = (i + 1).ToString(), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
-                Canvas.SetLeft(cell, (rect.X - display.WorkArea.X) * factor); Canvas.SetTop(cell, (rect.Y - display.WorkArea.Y) * factor); preview.Children.Add(cell);
-            }
+            var rect = result.Areas[i];
+            var cell = new Border { Width = rect.Width * factor, Height = rect.Height * factor,
+                Background = new SolidColorBrush(Color.FromRgb(185, 208, 174)), BorderBrush = Brushes.SeaGreen, BorderThickness = new Thickness(1),
+                Child = new TextBlock { Text = (i + 1).ToString(), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+            Canvas.SetLeft(cell, (rect.X - display.WorkArea.X) * factor); Canvas.SetTop(cell, (rect.Y - display.WorkArea.Y) * factor); preview.Children.Add(cell);
         }
-        catch (ArgumentOutOfRangeException e) { status.Text = e.Message; }
-        apply.IsEnabled = IsReady && layoutUsable;
+        apply.IsEnabled = IsReady && result.CanConfirm;
     }
-    private void Submit() { RefreshCandidates(); if (!finished && IsReady && layoutUsable) Finish(true, ""); }
+    private void Submit() { RefreshCandidates(); if (!finished && IsReady && group.Evaluate(Kind).CanConfirm) Finish(true, ""); }
     private void Finish(bool confirmed, string message, bool close = true, bool failed = false)
     {
         if (finished) return;
@@ -345,8 +331,6 @@ internal sealed class QuickSelectWindow : Window
         var result = new QuickSelectionResult(selected.Select(r => r.Target).ToArray(), Kind, confirmed, message, failed);
         if (close) Close(); Completed?.Invoke(result);
     }
-    private static bool SameIdentity(WindowTarget a, WindowTarget b) => a.Handle == b.Handle && a.Generation == b.Generation
-        && a.ProcessId == b.ProcessId && a.ThreadId == b.ThreadId && a.Started == b.Started && a.ClassName == b.ClassName;
     private sealed class LayoutLabelConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture) => value switch {

@@ -262,6 +262,9 @@ internal static partial class Program
             Equal(new WindowRect(-955, -100, 954, 1000), layout[1]);
             return Task.CompletedTask;
         }),
+        ("overview-selection-refresh", CheckOverviewSelectionRefresh),
+        ("selection-eligibility", CheckSelectionEligibility),
+        ("selection-order", CheckSelectionOrder),
         ("overview-size", CheckOverviewSize),
         ("overview-size-ui", CheckOverviewSizeUi),
         ("overview", CheckOverview),

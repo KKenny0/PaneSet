@@ -126,10 +126,9 @@ internal static partial class Program
             await Until(() => GetForegroundWindow() == targets[5].Handle);
             picker = panel.OpenQuickSelection(targets[5].Handle, targets)!; await Ready(picker);
             var cards = Elements<CheckBox>(picker).ToArray();
-            Equal(targets[5].Handle, ((WindowRow)cards[0].DataContext).Target.Handle);
             Equal(12, cards.Length);
-            var order = cards.Select(c => ((WindowRow)c.DataContext).Target.Handle).ToArray();
-            Equal(string.Join(',', new[] { 5, 0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 }.Select(i => targets[i].Handle)), string.Join(',', order));
+            Equal(string.Join(',', new[] { 5, 0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 }.Select(i => targets[i].Title)),
+                string.Join(',', cards.Select(System.Windows.Automation.AutomationProperties.GetName)));
             await ClickOwned(picker, Candidate(picker, targets[1].Title));
             await Until(() => Candidate(picker, targets[1].Title).IsChecked == true);
             Equal(targets[1].Title, manager.ListWindows(display).Single(t => t.Handle == targets[1].Handle).Title);
@@ -137,11 +136,10 @@ internal static partial class Program
             var move = ButtonNamed(picker, "前移 · " + targets[2].Title); move.Focus();
             await Until(() => System.Windows.Input.Keyboard.FocusedElement == move && GetForegroundWindow() == new WindowInteropHelper(picker).Handle);
             await SendKeys(0x0D);
-            await Until(() => ((WindowRow)Candidate(picker, targets[2].Title).DataContext).Order == 2);
+            await Until(() => Elements<TextBlock>(picker).Any(t => t.Text == "2 · " + targets[2].Title));
             Invoke(ButtonNamed(picker, "前移 · " + targets[2].Title));
-            await Until(() => ((WindowRow)Candidate(picker, targets[2].Title).DataContext).Order == 1);
-            Equal(1, ((WindowRow)Candidate(picker, targets[2].Title).DataContext).Order);
-            Equal(2, ((WindowRow)Candidate(picker, targets[5].Title).DataContext).Order);
+            await Until(() => Elements<TextBlock>(picker).Any(t => t.Text == "1 · " + targets[2].Title));
+            Equal(true, Elements<TextBlock>(picker).Any(t => t.Text == "2 · " + targets[5].Title));
             var search = Elements<TextBox>(picker).Single(); search.Text = "修订";
             Equal(1, Elements<CheckBox>(picker).Count(c => c.IsVisible));
             Equal(true, ButtonNamed(picker, "确认本屏选窗").IsEnabled);
@@ -149,8 +147,8 @@ internal static partial class Program
             search.Focus(); await SendKeys(0x0D); Equal(true, picker.IsVisible); Equal(false, manager.HasUndo);
             search.Text = "";
             await fixture.Send("long");
-            await Until(() => Elements<CheckBox>(picker).Any(c => ((WindowRow)c.DataContext).Target.Title.Length > 200));
-            Equal(string.Join(',', order), string.Join(',', Elements<CheckBox>(picker).Select(c => ((WindowRow)c.DataContext).Target.Handle)));
+            await Until(() => Elements<CheckBox>(picker).Any(c => System.Windows.Automation.AutomationProperties.GetName(c).Length > 200));
+            Equal(true, cards.SequenceEqual(Elements<CheckBox>(picker)));
             foreach (var size in new[] { (1440d, 900d), (1000d, 650d), (700d, 450d) })
             {
                 picker.Width = size.Item1; picker.Height = size.Item2; await Task.Delay(250); picker.UpdateLayout();
