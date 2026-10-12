@@ -264,11 +264,19 @@ internal static partial class Program
         using var manager = new WindowManager(); var targets = fixture.Handles.Select(h => manager.ListWindows().Single(t => t.Handle == h)).ToArray();
         var originals = targets.Select(manager.ReadState).ToArray();
         var panel = new MainWindow(manager, WindowManager.ListDisplays()[0], targets, settingsPath: path); panel.Show();
+        var trace = new List<string>();
+        void Observe(string stage)
+        {
+            var foreground = GetForegroundWindow();
+            trace.Add($"{stage}: target={targets[0].Handle}, foreground={foreground}, foregroundClass={Native.Text(foreground, true)}, state={manager.ReadState(targets[0])}, pending={manager.HasPending}, undo={manager.HasUndo}; panel={WindowEvidence(panel)}");
+        }
         try
         {
+            Observe("before-initial-top");
             await fixture.Send("top 0");
             var bounds = manager.ReadState(targets[0]).Bounds;
             await ClickNativeOwned(targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+            Observe("after-initial-click");
             await Until(() => GetForegroundWindow() == fixture.Handles[0]);
             await SendKeys(0x11, 0x12, 0x81);
             await Until(() => Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Any());
@@ -285,9 +293,13 @@ internal static partial class Program
             await SendKeys(0x0D); await Until(() => !picker.IsVisible && !manager.HasPending && manager.HasUndo);
             Equal(originals[2], manager.ReadState(targets[2]));
             var applied = targets.Select(manager.ReadState).ToArray();
+            Observe("after-first-arrange");
             await fixture.Send("untop 0");
+            Observe("after-untop");
             if (GetForegroundWindow() != targets[0].Handle) Equal(true, SetForegroundWindow(targets[0].Handle));
+            Observe("after-foreground-request");
             await Until(() => GetForegroundWindow() == targets[0].Handle);
+            Observe("before-second-entry");
             await SendKeys(0x11, 0x12, 0x81);
             await Until(() => Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Any());
             picker = Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Single(); await Ready(picker);
@@ -296,6 +308,11 @@ internal static partial class Program
             for (int i = 0; i < 3; i++) Equal(applied[i], manager.ReadState(targets[i]));
             Equal(true, (await manager.UndoAsync()).Success);
             for (int i = 0; i < 3; i++) Equal(originals[i], manager.ReadState(targets[i]));
+        }
+        catch (Exception e)
+        {
+            Observe("failure");
+            throw new Exception("Global B input failed. Stage observations:\n" + string.Join("\n", trace), e);
         }
         finally { panel.Exit(); Directory.Delete(Path.GetDirectoryName(path)!, true); }
     }

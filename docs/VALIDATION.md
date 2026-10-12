@@ -1,5 +1,17 @@
 # Windows 多窗原型验收
 
+## global-quick-input：第二次进入前台超时调查（未复现目标故障）
+
+基于 `fea6de2` 开始单独诊断。入口为 `powershell.exe -NoProfile -File C:/Users/Administrator/AppData/Local/Temp/paneset-global-input-diagnosis/run.ps1`。原用例执行 6 次：4 PASS / 2 FAIL；增加阶段状态采集后执行 10 次：9 PASS / 1 FAIL。16 次合计 13 PASS / 3 FAIL，**没有一次复现原先第二次进入 B 前的前台等待超时**；不能进入该故障的根因修复阶段，也不能用通过次数宣称已修复。
+
+三个失败中，一次在首次总览 `OverlayClick` 等待鼠标事件时超时，另外两次为最终恢复期望最大化、实际普通窗口。其中带诊断的一次明确记录：初始准备点击之前目标最大化，点击之后即变为普通窗口，当时 `pending=False, undo=False`；后续第二次进入的前台检查通过。因此这一场景的几何差异已在排布前发生，不能据此认定 Undo 保存/恢复错误。为何准备点击改变最大化状态仍未定位，且不等于原前台超时的根因。
+
+还尝试临时同进程串联原全套相邻的 `quick-input → global-quick-input`。第一次执行即在前置用例准备主面板时，因命中 Chrome 子窗口而拒绝输入，未到目标用例；随后停止桌面输入，没有清理用户窗口或放宽所有权保护。临时串联入口已移除，未运行完整套件。
+
+保留 `CheckGlobalQuickInput` 的失败上下文：初始准备点击前后、第一次排布后、取消置顶后、请求前台后、第二次进入前及失败时的自建窗口状态、前台句柄/类、pending/Undo 与主面板状态；不记录外部窗口标题或输入内容。仅失败时输出，异常保留原始 InnerException，未改等待、断言、输入路径或生产逻辑。临时 `[DEBUG-global-entry]` 标记已清除。最终 Release 构建 0 警告/错误；最终整理移除临时入口、调整异常标签并让同条目标状态记录使用同一次前台采样，此后未再次进行桌面验收。
+
+上述目录保存 `baseline-1.log` 至 `baseline-6.log`、`probe-1.log` 至 `probe-10.log`、`sequence-1.log`，以及明确标记为 debug 的采样源码副本。`sequence.ps1` 是本轮临时串联入口记录，最终构建不再包含该用例；常规 `run.ps1` 仍可执行。历史全套失败不改写，稳定性任务继续开放。下一步需要再次出现目标超时时的阶段状态，或能提高其复现率的具体操作顺序；现有证据不足以修改产品激活策略。
+
 ## ui-many：测试宿主应用名假设修复
 
 已定位前轮 `ui-many` 的“Expected 8, got 0”：用例搜索硬编码 `PaneSet.Checks`，而 `Fixture.Start` 通过 `Environment.ProcessPath` 启动测试窗口。用 `dotnet PaneSet.Checks.dll` 运行时，fixture 的应用名为 `dotnet`；通过 `PaneSet.Checks.exe` 运行时才为 `PaneSet.Checks`。主面板按真实应用名过滤，前一种启动方式匹配到 0 项，因此渲染出的已选复选框为 0；不是 B 选择规则重构导致窗口丢失。

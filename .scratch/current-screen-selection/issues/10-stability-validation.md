@@ -66,6 +66,12 @@ quick-cancel-undo 使用 fixture 前台和严格命中建立会话，以控件�
 
 这次总览尺寸已获得用户正向反馈且自动界面检查通过。稳定性收尾仍未全部完成，暂不声称可发布。
 
+### global-quick-input 前台超时调查
+
+用户指定 diagnosing-bugs global-quick-input。单独运行原版 6 次（4 PASS / 2 FAIL），加入阶段状态诊断后 10 次（9 PASS / 1 FAIL），未复现目标“第二次进入前等待前台超时”。两次失败为最终最大化恢复断言，一次为首次总览点击事件等待；其中带诊断的几何失败已证实准备点击后、排布前目标就变为普通窗口，不能归因于 Undo，但准备点击改变状态的机制仍未知。
+
+临时同进程串联 quick-input → global-quick-input 在前置用例被 Chrome 命中所有权保护拦下，未到目标，随即停止桌面输入。保留测试侧边界状态采集，删除临时串联入口与 DEBUG 标记；生产逻辑、等待、断言和输入保护不变。最终构建 0 警告/错误，最终整理后未再桌面验收。证据位于 Temp/paneset-global-input-diagnosis，完整结果见 docs/VALIDATION.md。目标故障仍处于建立复现阶段，不能声称修复或关闭任务；需要下次带阶段状态的超时现场或更具体的触发顺序。
+
 ### ui-many 根因与修复
 
 用户指定 diagnosing-bugs ui-many 后，原完整用例在 dotnet 宿主下两次稳定复现 Expected 8, got 0。最小用例确认全选后的 8 项在搜索时被筛掉；只切换启动方式的对照确认 fixture 的应用名分别为 dotnet / PaneSet.Checks，硬编码搜索 PaneSet.Checks 仅适用于后者。这是测试启动方式假设错误，不是生产选组丢失或布局时序故障。
