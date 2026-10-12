@@ -1,5 +1,69 @@
 # Windows 多窗原型验收
 
+## 配置替换：第 5 阶段修复及最终回归（2026-10-12）
+
+基线 `7032654`。生产 Save 以唯一未使用的同目录备份名调用 File.Replace，临时 JSON 仍先 Flush(true)；1177 尝试一次无覆盖恢复旧备份，恢复失败则保留旧字节并报路径。提交后清理异常作为成功提示返回，Change 发布新绑定；失败时保留旧绑定并释放暂存注册。恢复与临时清理同时失败保留原 HRESULT、恢复路径和各层异常。
+
+| 验证 | 结果及边界 |
+| --- | --- |
+| 独立旧基线 + settings-replace | 迭代 7 返回 Win32 1175，累计观测 7 次 RF 打开，退出 1。计数不证明失败瞬间的排他持有；更早原工作区红阶段迭代 0 / observedRFopens=0。 |
+| 独立修复版 Release | 0 警告 / 0 错误；只应用 3 个生产文件、检查入口和新测试文件。 |
+| 最新版 7 项保存回归 | 各 1 PASS / 0 FAIL / 0 unavailable，均退出 0。真实 Save/Load 200 次；真实 Change、磁盘/内存绑定和注册持有/释放逐次验证 100 次。 |
+| 清理、恢复、竞争失败 | 真实成功替换后锁备份验证清理提示与新绑定；真实锁目标验证失败保留旧值。1176/1177 注入控制流，1177 同时真实移动旧目标；锁备份、外部重建目标、锁临时文件分别验证恢复失败、无覆盖、组合错误与备份保留。不是实际 Windows 返回 1176/1177 的记录。 |
+| 最终完整 64 项 | **57 PASS / 4 FAIL / 3 unavailable**，整数退出码 **1**，约 103.48 秒；新增 7 项及 shortcut-settings、configured-input 全部 PASS。 |
+
+4 个失败为 overview-size-ui（OverviewChecks.cs:90）、quick-cancel-undo（物理鼠标按钮已按下，严格保护拒绝注入）、quick-flow（覆盖层 UI 等待超时）、local-layout-keys（前台等待超时）。3 unavailable 为 single-instance、shortcut-routing、shortcuts，存在用户实例或快捷键占用。上述分类只记录失败位置；未建立四项的同环境旧基线差异对照，UI 超时根因仍未确认，不将四项统一归因于既有问题或环境。未关闭用户进程或放宽 guard。全套后的最终改动只有 Save 返回值契约注释及测试探针退出清理，随后最新独立构建复跑 7 项保存回归；未再次重复桌面全套。
+
+完整 configured-input 之前的单独运行已越过三次保存，但在原生前台等待处失败；加两行临时状态输出的另一次通过，激活请求初始均 false、随后达到严格前台断言。最终全套代码移除了临时输出且完整通过；不据重跑 PASS 推断前台稳定性已修复。global-quick-input 本轮全套 PASS，同样不关闭其历史间歇问题。原 **48 PASS / 6 FAIL / 3 unavailable** 记录继续保留在下文。
+
+定向入口为 `--case settings-replace`、`settings-cleanup`、`settings-recovery`、`settings-recovery-blocked`、`settings-save-failures`、`settings-binding-replace`、`settings-temporary-cleanup`。构建/执行命令：
+
+```text
+.tools/dotnet/dotnet.exe build tests/PaneSet.Checks -c Release --nologo --artifacts-path D:/VibeProject/diagnostics/paneset/issue08-20261012/phase5-build
+.tools/dotnet/dotnet.exe D:/VibeProject/diagnostics/paneset/issue08-20261012/phase5-build/bin/PaneSet.Checks/release/PaneSet.Checks.dll [--case <case>]
+```
+
+实际执行脚本设置子进程 DOTNET_ROOT / DOTNET_ROOT_X64 指向本仓库 .tools/dotnet，保存整数退出码及 stdout/stderr。[phase5 证据目录](D:/VibeProject/diagnostics/paneset/issue08-20261012/phase5-evidence/)保存 baseline-red、temporary-cleanup-red/green、final-settings-*、full-suite 原始日志与状态；独立源码位于 phase5-isolated，最新版定向产物位于 phase5-final-build。原常规构建曾被用户运行中的 PaneSet.exe 锁定，转隔离输出，未关闭用户进程。
+
+规范/规格两轴按本仓库说明、GLOSSARY、问题 08 和快捷键事务规格人工核对；当前工具无并行子代理，Advisor 提供边界建议但未独立读取完整补丁。没有范围内未处理发现。问题 08 为 ready-for-agent / done，稳定性任务 10 仍 needs-info / in-progress。当前主机 Windows 10 的受控结果不替代 Windows 11 x64 支持基线验收；未推送、发布或重建既有 v0.2.0-preview.1，现有用户进程继续运行旧构建。后文是各阶段历史记录，其中未修复、未验收表述对应当时状态。
+
+## configured-input：内部 RF 失败请求定位与竞争机制复现（生产未修复）
+
+用户批准一次管理员取证后，WPR 实际录制约 3.038 秒，原生探针第 14 次 ReplaceFileW 捕获 1175；旧目标 `new13`、新源 `new14` 保留。ETL 已保存，`wpr -status` 确认停止，无桌面输入、停用户应用/服务或生产源码修改。
+
+已按 ETL PerfFreq=10,000,000 与系统 QPC 校验、换算 Python 纳秒计时。失败调用中，旧 settings.json 到内部 `settings.json~RF3d687e78.TMP` 的覆盖重命名（InfoClass=65）及其同 IRP 完成事件明确返回 **0xC0000022 STATUS_ACCESS_DENIED**。同一内部 RF 文件可见 PID 185240 成功打开（ShareAccess=7），该打开早于失败、相同 FileObject 的 Cleanup 晚于失败完成；只读进程路径、启动时间及父进程确认这是 Raycast 后台 node.exe。由于事件丢失，不能把未观察到中间 Close 当成持续持有的排他证明，或完全排除地址复用和其他参与因素。失败完成栈含 Ntfs.sys；其他驱动的存在不作主动拒绝证据，Raycast 内部发起模块仍未知。
+
+受控对照直接验证机制：D 卷原 ReplaceFileW + 目录通知，notify-only **20/20 PASS**；20 次持有条件中，实际及时持有内部 RF 文件的 **19/19 返回同样 1175**，未截获的 1 次 PASS，失败均保留旧目标和新源。独立 MoveFileExW 对照也显示完整共享的覆盖目标句柄会导致 5，而持有源或先释放目标均通过。故阻挡点是本次内部覆盖目标，不是必须持有原配置文件。
+
+显式唯一备份名的候选仍仅在隔离探针：C 卷无备份 10/10 试次失败、失败前 327 次成功；唯一备份 **1,000 次成功、0/10 试次失败**。D 卷显式备份通知均在重命名后出现，实际持有备份时 **20/20 PASS**，40 份备份旧字节均正确。未改生产 Save，未验证备份清理与其他失败码的绑定/磁盘一致性，不称修复或完整 configured-input PASS。
+
+证据：[稳定诊断索引](D:/VibeProject/diagnostics/paneset/issue08-20261012/README.md)、[聚焦时间线与断言](D:/VibeProject/diagnostics/paneset/issue08-20261012/evidence/root-mechanism.json)，详细命令见[问题 08](../.scratch/current-screen-selection/issues/08-settings-replace-failure.md)。原始 ETL 本地约 440 MB，TraceEvent 3.2.8 为任务目录临时解析依赖，不进入产品。录制报告 **1,174,675 丢失事件**，不据缺失事件排除原因，也不将本次读者当成历史所有 1175 的唯一触发者。
+
+外层取证脚本原退出码读取为 null，原记录 Success=false 保留；ETL 保存和 WPR 停止分别有实际证据。已修正诊断 runner，probe-only 验证整数退出码 1 / 1175，无第二次内核录制。tracerpt 截断 XML 已删除，仅保留原始 ETL 和分开的流式衍生。问题 08 改为 ready-for-agent / in-progress，稳定性总体仍开放；完整 configured-input、Windows 11 与全套均未重跑，历史统计原样保留。
+
+## configured-input：配置原子替换继续诊断（2026-10-12，未修复）
+
+基线 `7032654`，仅继续[问题 08](../.scratch/current-screen-selection/issues/08-settings-replace-failure.md)的保存失败调查。生产源码未改；本轮没有桌面输入、提权、安装工具或内核录制，未重跑完整 configured-input 或全套。
+
+原 Python ReplaceFileW 探针仍重现 Win32 **1175 / 0x80070497**，第 0 次失败、退出 1、约 0.3 秒。新增保留现场的循环交错比较两个不同 NTFS 卷，每试次最多连续替换同一目标 100 次：
+
+| 条件 | 失败试次/总数 | 失败前累计成功替换 |
+| --- | --- | --- |
+| C 卷，0 ms 间隔 | 4/10 | 825 |
+| C 卷，10 ms 间隔 | 10/10 | 215 |
+| D 卷，0 ms 间隔 | 0/10 | 1000 |
+| D 卷，10 ms 间隔 | 0/10 | 1000 |
+
+失败均为 1175，旧目标/新源内容保留。固定种子 7032654；两卷使用不同目录根，不能把关联当成卷本身的因果证明。独立新文件对多数通过，100 ms 等待仍有 1175；受控普通共享冲突稳定返回 32，未产生相同错误。没有依据采用延迟重试或替换算法。
+
+关联进程查询通过主动持有读句柄的正向校验；随后 20/20 试次出现 1175，查询成功但源/目标 PID 列表为空。两个查询合计需 **104–123 ms**，不是失败瞬间证据。只读驱动服务列表不能指认阻挡者；fltmc filters 仍 Access denied，缺少实际 I/O/调用栈。
+
+生产链接的独立 message-only 宿主 Release 构建 **0 警告/错误**，不显示窗口、不注入输入，使用真实 checked RegisterHotKey。20/20 个试次出现同样保存失败，0 unavailable，失败前 391 次 Change 成功；每次均验证磁盘/内存/旧 ID/旧快捷键保留，暂存注册释放、临时文件清理及重载一致。退出码 1 表示保存故障继续存在，安全断言全过，不能称修复或完整输入验收通过。
+
+短入口：`python C:/Users/Administrator/AppData/Local/Temp/paneset-replace08-diagnosis/capture-probe.py`，已在第 2 次替换重现 1175、退出 1、约 0.3 秒，保留不同序号字节、PID/UTC/QPC。脚本、八份原始 JSON 和三份合成失败现场稳定归档到 [D:/VibeProject/diagnostics/paneset/issue08-20261012/README.md](D:/VibeProject/diagnostics/paneset/issue08-20261012/README.md)；D 卷全部 fixture 另归档到 D:/Temp，路径映射另存，无生成物留在仓库。
+
+下一步的系统 WPR 自定义文件/minifilter 配置与 capture-kernel.ps1 已准备，`-ValidateOnly` 校验通过。当前令牌为非管理员；脚本给自建探针设置 10 秒运行上限，fixture 显式保持 C 卷 Temp，只停止自己的录制。实际管理员内核捕获尚未获授权或执行；配置在短时间窗口录制系统文件 I/O 与进程/模块信息，无法预先按 fixture 路径过滤，ETL 可能含其他文件名/进程元数据，仅本地保留。根因未识别，问题 08 和稳定性任务仍开放，历史全套统计保持原样。
+
 ## global-quick-input：第二次进入前台超时调查（未复现目标故障）
 
 基于 `fea6de2` 开始单独诊断。入口为 `powershell.exe -NoProfile -File C:/Users/Administrator/AppData/Local/Temp/paneset-global-input-diagnosis/run.ps1`。原用例执行 6 次：4 PASS / 2 FAIL；增加阶段状态采集后执行 10 次：9 PASS / 1 FAIL。16 次合计 13 PASS / 3 FAIL，**没有一次复现原先第二次进入 B 前的前台等待超时**；不能进入该故障的根因修复阶段，也不能用通过次数宣称已修复。

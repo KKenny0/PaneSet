@@ -47,17 +47,75 @@ internal sealed class ShortcutSettings
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
         { notice = "无法读取快捷键配置，正在使用默认值；主动保存后才覆盖原文件。" + e.Message; return new(); }
     }
-    public void Save(string path)
+    // A return value is a cleanup notice after commit; failures throw.
+    public string Save(string path) => Save(path, ShortcutSettingsFiles.Instance);
+    internal string Save(string path, IShortcutSettingsFiles files)
     {
         string full = Path.GetFullPath(path);
         Directory.CreateDirectory(Path.GetDirectoryName(full)!);
         string temporary = full + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        string backup = temporary + ".bak";
+        bool committed = false, hasBackup = false;
+        Exception? failure = null;
+        string notice = "";
         try
         {
             using (var file = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             { JsonSerializer.Serialize(file, this, JsonOptions); file.Flush(true); }
-            if (File.Exists(full)) File.Replace(temporary, full, null); else File.Move(temporary, full);
+            if (File.Exists(full))
+            {
+                // An unused backup name avoids replacing the internally created ~RF destination.
+                if (File.Exists(backup) || Directory.Exists(backup)) throw new IOException("配置备份路径已被占用：" + backup);
+                try { files.Replace(temporary, full, backup); hasBackup = true; }
+                catch (IOException e) when ((e.HResult & 0xffff) == 1177)
+                {
+                    try { files.Move(backup, full); }
+                    catch (Exception recovery) when (recovery is IOException or UnauthorizedAccessException)
+                    {
+                        throw new IOException("保存失败：" + e.Message + "；原配置未能恢复，保留于：" + backup + "。" + recovery.Message,
+                            new AggregateException(e, recovery)) { HResult = e.HResult };
+                    }
+                    throw;
+                }
+            }
+            else files.Move(temporary, full);
+            committed = true;
         }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
+        { failure = e; throw; }
+        finally
+        {
+            try { if (File.Exists(temporary)) files.Delete(temporary); }
+            catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+            {
+                string message = "临时配置未能清理：" + temporary + "。" + cleanup.Message;
+                if (failure != null)
+                    throw new IOException(failure.Message + "；" + message, new AggregateException(failure, cleanup)) { HResult = failure.HResult };
+                if (!committed) throw;
+                notice = message;
+            }
+        }
+        if (hasBackup)
+        {
+            try { files.Delete(backup); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            { notice += "旧配置备份未能清理：" + backup + "。" + e.Message; }
+        }
+        return notice;
     }
+}
+
+internal interface IShortcutSettingsFiles
+{
+    void Replace(string source, string destination, string backup);
+    void Move(string source, string destination);
+    void Delete(string path);
+}
+
+internal sealed class ShortcutSettingsFiles : IShortcutSettingsFiles
+{
+    public static readonly ShortcutSettingsFiles Instance = new();
+    public void Replace(string source, string destination, string backup) => File.Replace(source, destination, backup);
+    public void Move(string source, string destination) => File.Move(source, destination);
+    public void Delete(string path) => File.Delete(path);
 }

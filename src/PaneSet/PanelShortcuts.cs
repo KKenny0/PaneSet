@@ -8,6 +8,7 @@ internal sealed class PanelShortcuts : IDisposable
     private readonly HwndSource source;
     private readonly Action<ShortcutAction, nint> dispatch;
     private readonly string path;
+    private readonly Func<ShortcutSettings, string> save;
     private ShortcutSettings settings;
     private readonly Dictionary<ShortcutAction, (int Id, ShortcutBinding? Binding, string Error)> slots = [];
     private readonly HashSet<int> registered = [];
@@ -26,9 +27,10 @@ internal sealed class PanelShortcuts : IDisposable
         : slots[action].Id == 0 ? "已禁用" : "已生效：" + slots[action].Binding;
 
     public PanelShortcuts(nint window, Action<ShortcutAction, nint> dispatch, string? settingsPath = null,
-        IEnumerable<ShortcutAction>? actions = null)
+        IEnumerable<ShortcutAction>? actions = null, Func<ShortcutSettings, string>? saveSettings = null)
     {
         this.dispatch = dispatch; path = settingsPath ?? ShortcutSettings.DefaultPath;
+        save = saveSettings ?? (value => value.Save(path));
         settings = ShortcutSettings.Load(path, out string notice); Notice = notice;
         source = HwndSource.FromHwnd(window); source.AddHook(Receive);
         foreach (var action in actions ?? new[] { ShortcutAction.OpenPanel, ShortcutAction.Restore })
@@ -60,19 +62,20 @@ internal sealed class PanelShortcuts : IDisposable
         }
         var next = new ShortcutSettings { Shortcuts = new(settings.Shortcuts) };
         next.Shortcuts[action] = binding;
-        try { next.Save(path); }
+        string saveNotice;
+        try { saveNotice = save(next); }
         catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
         { return "未保存，原绑定保留。" + e.Message + Release(staged); }
         if (old.Id != 0 && !Native.UnregisterHotKey(source.Handle, old.Id))
         {
             string message = "旧注册未能释放，修改未完成，请重新启动。";
-            try { settings.Save(path); }
+            try { message += save(settings); }
             catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException)
             { settings = next; message += "保存值为新组合，当前仍持有旧注册；配置回滚失败：" + e.Message; }
             Notice = message + Release(staged); return Notice;
         }
         registered.Remove(old.Id);
-        slots[action] = (staged, binding, ""); settings = next; Notice = "";
+        slots[action] = (staged, binding, ""); settings = next; Notice = saveNotice;
         return "";
     }
     private string Release(int id)

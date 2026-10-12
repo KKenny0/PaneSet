@@ -65,10 +65,10 @@ internal sealed class SettingsWindow : Window
         {
             var binding = enabled.IsChecked == true ? new ShortcutBinding(modifiers.Where(p => p.Value.IsChecked == true).Aggregate(0u, (n, p) => n | p.Key), (key.SelectedItem as KeyChoice)?.Key ?? 0) : null;
             string error = shortcuts!.Change(action, binding);
-            notice.Text = error.Length == 0 ? "已保存。" : error;
+            notice.Text = error.Length == 0 ? "已保存。" + shortcuts.Notice : error;
             if (error.Length == 0) Refresh(); else status.Text = "保存值：" + (shortcuts.BindingFor(action)?.ToString() ?? "禁用") + " · " + shortcuts.StatusFor(action);
         };
-        reset.Click += (_, _) => { string error = shortcuts!.Change(action, ShortcutSettings.Default(action)); notice.Text = error.Length == 0 ? "已恢复默认。" : error; Refresh(); };
+        reset.Click += (_, _) => { string error = shortcuts!.Change(action, ShortcutSettings.Default(action)); notice.Text = error.Length == 0 ? "已恢复默认。" + shortcuts.Notice : error; Refresh(); };
         Refresh(); return row;
     }
     private sealed record KeyChoice(uint Key, string Label);

@@ -77,3 +77,23 @@ quick-cancel-undo 使用 fixture 前台和严格命中建立会话，以控件�
 用户指定 diagnosing-bugs ui-many 后，原完整用例在 dotnet 宿主下两次稳定复现 Expected 8, got 0。最小用例确认全选后的 8 项在搜索时被筛掉；只切换启动方式的对照确认 fixture 的应用名分别为 dotnet / PaneSet.Checks，硬编码搜索 PaneSet.Checks 仅适用于后者。这是测试启动方式假设错误，不是生产选组丢失或布局时序故障。
 
 仅将 CheckManyUi 的搜索词改为宿主实际进程名，恢复全部原流程并移除临时诊断。Release 构建 0 警告/错误；完整 ui-many 在 dotnet 和 apphost 下均 PASS、退出码 0。日志与产物独立保存到 Temp/paneset-ui-many-diagnosis，详情见 docs/VALIDATION.md 顶部。本项已解决；任务整体继续保持 needs-info / in-progress，其余配置和间歇输入失败未因此关闭。
+
+### 2026-10-12：configured-input 保存失败继续调查
+
+按 diagnosing-bugs 继续问题 08，不占用桌面。C 卷连续替换同一目标、源写完后等待 10 ms 的原生探针在 10/10 个试次捕获 1175，D 卷同条件 0/10 失败；目录根也不同，尚无卷或过滤驱动的因果结论。关联进程查询已通过受控句柄正向校验，但耗时 104–123 ms，空列表不能排除瞬时占用。
+
+直接链接生产保存/绑定事务的 message-only 宿主构建 0 警告/错误，20/20 个试次重现相同保存失败，所有磁盘/内存/旧注册保留、暂存注册释放和临时文件清理断言通过；不是保存故障修复，也没有运行完整 configured-input。根因仍待失败时的 I/O/调用栈。系统 WPR 的自定义捕获脚本已准备并完成配置校验，实际管理员捕获尚未授权或执行。完整证据和下一步入口见[问题 08](08-settings-replace-failure.md)及 docs/VALIDATION.md 顶部；状态、历史全套统计保持不变。
+
+### 用户批准内核取证后的问题 08 机制确认
+
+一次管理员 WPR 捕获已保存并停止。第 14 次 ReplaceFileW 返回 1175 的现场，内部 RF 临时覆盖目标有 Raycast 后台 node.exe 成功打开的记录，早于旧配置覆盖重命名失败，相同 FileObject 的 Cleanup 晚于失败；同一重命名 IRP 返回 0xC0000022。受控 D 卷仅引入该 RF 句柄，19 次实际持有均产生同样 1175，notify-only 20/20 PASS，确认受控竞争机制。实际 ETL 不能据未观察到中间 Close 排他证明持续持有或排除地址复用。录制有大量丢失事件，不根据缺席排除其他因素或归因全部历史失败。
+
+显式唯一备份名在隔离 C 卷 1,000 次通过，受控持有备份 20/20 通过，仍未改生产 Save，也未验证生产备份清理和其他失败码事务。问题 08 变为 ready-for-agent / in-progress，可继续实现验证；任务 10 的 needs-info / in-progress 和历史全套结果不变。完整 configured-input 与桌面全套未跑，原外层 null 退出码记录保留，诊断 runner 另修并仅 probe-only 验证。详见问题 08、docs/VALIDATION.md 顶部及稳定诊断索引。
+
+### 2026-10-12：问题 08 修复后的完整检查
+
+用户追加授权第 5 阶段修复、TDD 回归、审查、提交和复盘；覆盖早期仅诊断且不提交的范围。问题 08 的生产保存与清理/恢复事务已修复，独立基线同一 Save 回归仍红（迭代 7、1175、累计 7 次 RF 打开），修复版 7 个定向检查全部绿。完整 configured-input 与 shortcut-settings 均 PASS。
+
+完整 64 项 **57 PASS / 4 FAIL / 3 unavailable**，退出码 1，约 103.48 秒。失败为 overview-size-ui、quick-cancel-undo（物理按键保护拒绝注入）、quick-flow、local-layout-keys；3 unavailable 仍与用户实例或快捷键占用有关。单独 configured-input 曾在保存成功后的前台等待超时，后续辅助日志及最终无临时日志版本通过，不据此认定激活稳定性修复。原 48/6/3 统计保留；全套后的一条契约注释和测试探针退出清理已在最新独立构建中复跑 7 项保存检查，未重复全套。
+
+问题 08 记为 ready-for-agent / done，本任务继续 needs-info / in-progress；Windows 11 基线和完整发布验收仍待完成。没有重启用户 PaneSet、改变用户配置/布局、推送或发布。命令与证据见问题 08 和 docs/VALIDATION.md 最新节。

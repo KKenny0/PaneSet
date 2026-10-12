@@ -39,6 +39,8 @@ Loop 最初的评估针对上表中的固定提交，并对照了[正式版 1.4.
 | [GetWindowPlacement](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowplacement) | 获取正常、最小化和最大化的位置及显示状态，为恢复提供快照。 |
 | [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook) | 在有消息循环的线程监测窗口关闭，回调需要保持有效，事件有异步交付的边界。 |
 | [RegisterHotKey](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey) | 全局绑定、WM_HOTKEY、不重复触发、占用反馈和 F12 保留规则。 |
+| [ReplaceFileW](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-replacefilew) | 2026-10-12 核对：目标与源的不同共享模式、备份与同卷要求、保留属性；1175 保留原文件名，1176/1177 的失败状态不同。支持问题 08 的定位，不据此承诺任意失败都保持原路径内容。 |
+| [FILE_RENAME_INFORMATION](https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/ns-ntifs-_file_rename_information) | 2026-10-12 核对：覆盖已有目标与开放句柄的规则；FileRenameInformationEx 的 POSIX_SEMANTICS 配合 REPLACE_IF_EXISTS 可允许覆盖存在句柄的目标。当前 ETL 没有捕获调用 Flags，不推断实际 flags 或据此自行替换生产 API。 |
 | [SetForegroundWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow) | 普通激活请求的系统限制；即使符合条件也可能被拒绝，需读取实际前台。 |
 | [GetSystemMetrics](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetrics) / [GetAsyncKeyState](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate) | SM_SWAPBUTTON 与物理鼠标按钮状态：受控输入按系统映射选择主按钮，已按住按钮时不注入。 |
 | [ShowWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow) | 最大化到正常状态的转换，以及不激活窗口的显示方式。 |
