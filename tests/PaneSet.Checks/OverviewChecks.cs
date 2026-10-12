@@ -84,6 +84,9 @@ internal static partial class Program
             {
                 await fixture.Send("top 0"); var bounds = manager.ReadState(targets[0]).Bounds;
                 await ClickNativeOwned(targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+                var afterActivation = manager.ReadState(targets[0]);
+                if (afterActivation != original[0])
+                    throw new Exception($"Sizing fixture changed before opening overview, count={count}, expected={original[0]}, actual={afterActivation}");
                 await Until(() => GetForegroundWindow() == targets[0].Handle);
                 picker = panel.OpenQuickSelection(targets[0].Handle, targets.Take(count).ToArray())!;
                 QuickSelectionResult? completion = null;
@@ -93,10 +96,11 @@ internal static partial class Program
                 var initial = Native.Bounds(new WindowInteropHelper(picker).Handle);
                 Toggle(Candidate(picker, targets[1].Title));
                 var search = Elements<TextBox>(picker).Single(); search.Text = "修订"; await Task.Delay(250);
+                if (!picker.IsVisible) throw new Exception($"Sizing session closed during filtered viewport verification, count={count}, completion={completion}; {WindowEvidence(picker)}");
                 Equal(initial, Native.Bounds(new WindowInteropHelper(picker).Handle));
                 Equal(true, ButtonNamed(picker, "确认本屏选窗").IsEnabled);
                 search.Text = ""; await Task.Delay(250);
-                if (!picker.IsVisible) throw new Exception("Sizing session closed before viewport verification: " + completion?.Message);
+                if (!picker.IsVisible) throw new Exception($"Sizing session closed before viewport verification, count={count}, completion={completion}; {WindowEvidence(picker)}");
                 var button = ButtonNamed(picker, "确认本屏选窗"); var point = button.TranslatePoint(new Point(), picker); var client = ClientSize(picker);
                 Equal(true, point.X >= 0 && point.Y >= 0 && point.X + button.ActualWidth <= client.Width && point.Y + button.ActualHeight <= client.Height);
                 ComposedScreenshot(picker, "paneset-overview-fit-" + count);
@@ -106,6 +110,39 @@ internal static partial class Program
             }
         }
         finally { picker?.Close(); panel.Exit(); }
+    }
+
+    private static async Task ClickOverviewCandidate(QuickSelectWindow picker, CheckBox card)
+    {
+        var events = new List<string>();
+        string state() => $"checked={card.IsChecked}, enabled={card.IsEnabled}, visible={card.IsVisible}, ready={picker.IsReady}, shown={picker.IsVisible}, {WindowEvidence(picker)}";
+        void Capture(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            var position = e.GetPosition(card);
+            events.Add($"{e.RoutedEvent.Name}: button={e.ChangedButton}, source={e.OriginalSource?.GetType().Name}, cardPoint={position}, over={card.IsMouseOver}, captured={card.IsMouseCaptured}, handled={e.Handled}, checked={card.IsChecked}");
+        }
+        System.Windows.Input.MouseButtonEventHandler mouse = Capture;
+        RoutedEventHandler changed = (_, e) => events.Add($"{e.RoutedEvent.Name}: checked={card.IsChecked}");
+        Action<QuickSelectionResult> completed = result => events.Add($"completed: confirmed={result.Confirmed}, message={result.Message}");
+        picker.AddHandler(System.Windows.Input.Mouse.PreviewMouseDownEvent, mouse, true);
+        picker.AddHandler(System.Windows.Input.Mouse.PreviewMouseUpEvent, mouse, true);
+        card.Checked += changed; card.Unchecked += changed; picker.Completed += completed;
+        string before = state();
+        try
+        {
+            await ClickOwned(picker, card);
+            await Until(() => card.IsChecked == true);
+        }
+        catch (Exception e)
+        {
+            throw new Exception($"Overview card click failed. Before: {before}\nAfter: {state()}\nEvents: {string.Join(" | ", events)}", e);
+        }
+        finally
+        {
+            picker.RemoveHandler(System.Windows.Input.Mouse.PreviewMouseDownEvent, mouse);
+            picker.RemoveHandler(System.Windows.Input.Mouse.PreviewMouseUpEvent, mouse);
+            card.Checked -= changed; card.Unchecked -= changed; picker.Completed -= completed;
+        }
     }
 
     private static async Task CheckOverview()
@@ -118,19 +155,21 @@ internal static partial class Program
         var panel = new MainWindow(manager, display, targets, enableShortcuts: false);
         panel.Show();
         QuickSelectWindow? picker = null;
+        QuickSelectionResult? overviewCompletion = null;
         try
         {
             await fixture.Send("top 5");
             var bounds = manager.ReadState(targets[5]).Bounds;
             await ClickNativeOwned(targets[5].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
             await Until(() => GetForegroundWindow() == targets[5].Handle);
-            picker = panel.OpenQuickSelection(targets[5].Handle, targets)!; await Ready(picker);
+            picker = panel.OpenQuickSelection(targets[5].Handle, targets)!;
+            picker.Completed += result => overviewCompletion = result;
+            await Ready(picker);
             var cards = Elements<CheckBox>(picker).ToArray();
             Equal(12, cards.Length);
             Equal(string.Join(',', new[] { 5, 0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 }.Select(i => targets[i].Title)),
                 string.Join(',', cards.Select(System.Windows.Automation.AutomationProperties.GetName)));
-            await ClickOwned(picker, Candidate(picker, targets[1].Title));
-            await Until(() => Candidate(picker, targets[1].Title).IsChecked == true);
+            await ClickOverviewCandidate(picker, Candidate(picker, targets[1].Title));
             Equal(targets[1].Title, manager.ListWindows(display).Single(t => t.Handle == targets[1].Handle).Title);
             Toggle(Candidate(picker, targets[2].Title));
             var move = ButtonNamed(picker, "前移 · " + targets[2].Title); move.Focus();
@@ -171,6 +210,11 @@ internal static partial class Program
             Equal(areas[0], manager.ReadState(targets[5]).Bounds); Equal(areas[1], manager.ReadState(targets[1]).Bounds);
             Equal(true, (await manager.UndoAsync()).Success);
             Equal(original[5], manager.ReadState(targets[5])); Equal(original[1], manager.ReadState(targets[1]));
+        }
+        catch (Exception e)
+        {
+            throw new Exception($"Overview session failed. Completion={overviewCompletion}; " +
+                (picker == null ? "picker not created" : WindowEvidence(picker)), e);
         }
         finally { picker?.Close(); panel.Exit(); }
     }

@@ -1,5 +1,28 @@
 # Windows 多窗原型验收
 
+## B 选择规则重构：桌面恢复后的补验
+
+用户确认桌面可用后，基于 `c1df2d9` 的生产源码重建并补验；本轮生产代码未变。Release 构建仍为 **0 警告 / 0 错误**。测试侧仅增强 OverviewChecks 的失败证据：卡片实际鼠标事件及勾选变化、会话完成原因和窗口状态；尺寸用例在打开总览前检查 fixture 几何未被准备点击改变，并在读取已关闭宿主前报告退出原因。未放宽所有权/按键保护、延长等待或加入自动重试。
+
+完整 **57 项**运行结果：**48 PASS / 6 FAIL / 3 unavailable**，约 80.90 秒，无超时/锁屏中止，运行期间源码哈希未变化。计数来自进程输出的 `RESULT`；外层 PowerShell 未取得进程退出码（记录为 null），不将它写成已观测的 0 或 1。完整运行的测试版本包含卡片点击诊断；后续仅补充会话/尺寸失败证据，没有再次跑全套。
+
+| 全套失败 | 本次事实 |
+| --- | --- |
+| overview-size-ui | 取消后 fixture 几何比较失败：原普通窗口变为最大化；当时没有准备阶段的几何证据，不能归因于总览或用户操作。 |
+| overview | 已越过真实卡片点击、按钮 Enter、顺序和搜索断言；后续读取宿主客户区失败，未走完排布/Undo。 |
+| quick-invalid | 准备主面板时检测到鼠标按钮已按下，保护拒绝注入。 |
+| global-quick-input | 首次选组、Alt+1、Enter 排布已越过，第二次进入前等待 fixture 真实前台超时；未到取消与 Undo 断言。 |
+| configured-input | 临时配置保存报“无法删除要被替换的文件”，与历史原子替换失败一致；未改保存算法或宣称根因已确认。 |
+| ui-many | 主面板大列表可见项期望 8，实际 0；本轮没有定位原因。 |
+
+3 项 unavailable 是 `single-instance`（用户已有 PaneSet）及 `shortcut-routing`、`shortcuts`（入口被占用）；没有结束用户实例或释放其快捷键。全套通过包括新增选择规则、DWM `thumbnail`、`quick-flow`、真实 `quick-input`、独立 `quick-cancel-undo`、本屏/跨屏排布与恢复及最近组路径。`shortcut-settings` 本次通过不抵消 `configured-input` 的失败。
+
+定向过程保留全部证据：最初 `overview` 在真实点击后等待勾选超时；加入鼠标诊断后的运行在更早的按钮已按下保护处失败。全套后补充会话证据，再运行 `overview` **PASS**，完整覆盖最终顺序、低高度/滚动、失效取消、实际排布及 Undo。`overview-size-ui` 先在读取已关闭宿主时出现 1400 错误；将会话诊断提前至此读取之前后，定向 **PASS**，覆盖 2/3/8 窗尺寸、搜索/选择不改变外框、按钮可达与取消不改源几何/Undo。两次通过均没有生产修复，不能认为间歇输入/失焦或 fixture 最大化根因已解决。全套仍按 48/6/3 保留，不能改写成全套通过。
+
+构建仍在 `C:/Users/Administrator/AppData/Local/Temp/paneset-selection-build`。全套证据：`artifacts/selection-module-full.stdout.log`、`.stderr.log`、`-status.json`、`-source.json`；定向证据：`selection-module-overview-desktop.log`、`selection-module-overview-click-diagnosis.log`、`selection-module-diagnosis-overview.log`、`selection-module-diagnosis-overview-size-ui.log`、`selection-module-size-session-diagnosis.log`（均在 artifacts）。失败与定向成功分开记录，当前没有后台验证在运行。本次生成的 23 张截图保存在 `C:/Users/Administrator/AppData/Local/Temp/paneset-selection-desktop-screenshots-c1df2d9/`，受版本控制的历史截图已恢复，避免覆盖旧验证证据；已查看本次 450 高总览合成图，搜索、已选区及主要操作可见。
+
+Standards / Spec 同会话自查：改动限定于受控检查、诊断监听在 finally 释放、原断言与注入保护保留；不将合成路由/控件自动化当作真实输入。无独立双代理审查。本轮提交测试与验收记录，不推送或发布；历史稳定性问题继续开放，见[任务 10](../.scratch/current-screen-selection/issues/10-stability-validation.md)。
+
 ## B 总览选择规则集中（架构重构）
 
 新增 `OverviewSelection`，集中本次固定候选排序、有序选组、身份刷新、搜索匹配、编号、布局预览与确认资格。`QuickSelectWindow` 仅转交选择/取消/移位及原生观察结果，读取同一份状态绘制；不再维护自己的 selected/invalid 集合、可写编号或确认资格缓存，也不再依赖主面板的 `WindowRow`。原生执行、焦点保护、DWM 生命周期和 Undo 路径保持原职责。

@@ -1,0 +1,23 @@
+{
+  "commit": "c1df2d92b0eb9730249ba5e07445a956da594534",
+  "exit_code": null,
+  "stop_reason": null,
+  "test_diagnostics_modified": true,
+  "duration_seconds": 80.9013203,
+  "source_changed": [],
+  "summary": "RESULT passed=48, failed=6, unavailable=3",
+  "failed_cases": [
+    "overview-size-ui",
+    "overview",
+    "quick-invalid",
+    "global-quick-input",
+    "configured-input",
+    "ui-many"
+  ],
+  "unavailable_cases": [
+    "single-instance",
+    "shortcut-routing",
+    "shortcuts"
+  ],
+  "exit_code_note": "PowerShell process wrapper did not capture ExitCode; use the emitted RESULT for the observed outcome."
+}
