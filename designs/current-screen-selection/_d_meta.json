@@ -1,0 +1,19 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "quick-selection-prototype": {
+      "versions": [
+        {
+          "path": "quick-selection-prototype.html",
+          "createdAt": "2026-10-10T06:16:33.036Z",
+          "status": "approved",
+          "subtitle": "外观方向已获用户认可；操作体验和原生验收分别记录"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-10T06:16:33.037Z",
+  "updatedAt": "2026-10-10T06:41:31.679Z"
+}

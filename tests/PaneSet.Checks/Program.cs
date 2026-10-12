@@ -262,6 +262,26 @@ internal static partial class Program
             Equal(new WindowRect(-955, -100, 954, 1000), layout[1]);
             return Task.CompletedTask;
         }),
+        ("overview-size", CheckOverviewSize),
+        ("overview-size-ui", CheckOverviewSizeUi),
+        ("overview", CheckOverview),
+        ("thumbnail", CheckThumbnail),
+        ("mouse-routing", CheckMouseRouting),
+        ("quick-entry", CheckQuickEntry),
+        ("quick-cancel-undo", CheckQuickCancelUndo),
+        ("quick-flow", CheckQuickFlow),
+        ("quick-invalid", CheckQuickInvalid),
+        ("quick-input", CheckQuickInput),
+        ("global-quick-input", CheckGlobalQuickInput),
+        ("quick-activation-failure", CheckQuickActivationFailure),
+        ("screen-guard", CheckScreenGuard),
+        ("screen-arrange", CheckScreenArrange),
+        ("screen-partial", CheckScreenPartial),
+        ("screen-eligibility", CheckScreenEligibility),
+        ("screen-member-move", CheckScreenMemberMove),
+        ("settings-ui", CheckSettingsUi),
+        ("shortcut-settings", CheckShortcutSettings),
+        ("configured-input", CheckConfiguredInput),
         ("single-instance", CheckSingleInstance),
         ("shortcut-routing", CheckShortcutRouting),
         ("shortcuts", CheckShortcuts),
@@ -314,7 +334,7 @@ internal static partial class Program
         for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
             foreach (var child in Elements<T>(VisualTreeHelper.GetChild(root, i))) yield return child;
     }
-    private static Button ButtonNamed(MainWindow window, string name) => Elements<Button>(window).Single(b => AutomationProperties.GetName(b) == name);
+    private static Button ButtonNamed(Window window, string name) => Elements<Button>(window).Single(b => AutomationProperties.GetName(b) == name);
     private static void Invoke(Button button) => ((IInvokeProvider)new ButtonAutomationPeer(button).GetPattern(PatternInterface.Invoke)).Invoke();
     private static async Task Until(Func<bool> condition)
     {
@@ -332,7 +352,7 @@ internal static partial class Program
         return new Size(rect[2] / dpi.DpiScaleX, rect[3] / dpi.DpiScaleY);
     }
 
-    private static void Screenshot(MainWindow window, string name)
+    private static void Screenshot(Window window, string name)
     {
         window.UpdateLayout();
         var dpi = VisualTreeHelper.GetDpi(window);

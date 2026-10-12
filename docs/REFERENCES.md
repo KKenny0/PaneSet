@@ -38,9 +38,16 @@ Loop 最初的评估针对上表中的固定提交，并对照了[正式版 1.4.
 | [SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos) | 调整位置和大小、避免激活或改变层级、读取调用失败。 |
 | [GetWindowPlacement](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowplacement) | 获取正常、最小化和最大化的位置及显示状态，为恢复提供快照。 |
 | [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook) | 在有消息循环的线程监测窗口关闭，回调需要保持有效，事件有异步交付的边界。 |
+| [RegisterHotKey](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-registerhotkey) | 全局绑定、WM_HOTKEY、不重复触发、占用反馈和 F12 保留规则。 |
+| [SetForegroundWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setforegroundwindow) | 普通激活请求的系统限制；即使符合条件也可能被拒绝，需读取实际前台。 |
+| [GetSystemMetrics](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getsystemmetrics) / [GetAsyncKeyState](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getasynckeystate) | SM_SWAPBUTTON 与物理鼠标按钮状态：受控输入按系统映射选择主按钮，已按住按钮时不注入。 |
 | [ShowWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-showwindow) | 最大化到正常状态的转换，以及不激活窗口的显示方式。 |
 
 这些资料支持实现方向的可行性，不能替代真实应用中的筛选、缩放、焦点和恢复验收。WPF 单位、系统坐标及位置恢复之间的转换还需要实现代理结合官方结构说明和实测核对。
+
+## B 窗口总览的内容预览研究
+
+已核对 Microsoft 的 DWM 实时缩略图接口及生命周期。资料与原生验证边界见[总览预览调研](RESEARCH_WINDOW_OVERVIEW.md)；三种组织方式见[可点击原型](../designs/window-overview/README.md)。官方接口说明和网页模拟均不能替代 WPF 宿主、遮挡窗口与第三方应用的实测。
 
 ## 仍然缺少的证据
 

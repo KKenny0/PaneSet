@@ -111,7 +111,13 @@ public sealed class WindowManager : IDisposable
     public bool HasPending { get { lock (sync) return operation != null; } }
     public bool CanCollect { get { lock (sync) return operation?.IsCompleted == true; } }
 
-    public async Task<OperationReport> ApplyAsync(IReadOnlyList<WindowTarget> targets, DisplayArea display, ArrangementKind kind = ArrangementKind.Automatic)
+    public Task<OperationReport> ApplyOnScreenAsync(IReadOnlyList<WindowTarget> targets, DisplayArea display, ArrangementKind kind = ArrangementKind.Automatic)
+        => StartApply(targets, display, kind, true);
+
+    public Task<OperationReport> ApplyAsync(IReadOnlyList<WindowTarget> targets, DisplayArea display, ArrangementKind kind = ArrangementKind.Automatic)
+        => StartApply(targets, display, kind, false);
+
+    private async Task<OperationReport> StartApply(IReadOnlyList<WindowTarget> targets, DisplayArea display, ArrangementKind kind, bool currentScreenOnly)
     {
         if (targets.Count < 2 || targets.Select(t => t.Handle).Distinct().Count() != targets.Count)
             throw new ArgumentException("请选择至少两扇不同的窗口。");
@@ -121,15 +127,15 @@ public sealed class WindowManager : IDisposable
         lock (sync)
         {
             if (operation != null) return new([], Pending: true);
-            if (Native.Monitor(display.Handle).Work.Value != display.WorkArea || targets.Any(t => !IdentityMatches(t) || !Eligible(t.Handle)))
+            if (!DisplayMatches(display) || targets.Any(t => !IdentityMatches(t) || !Eligible(t.Handle, currentScreenOnly ? display : null)))
                 return new(targets.Select(t => new WindowOutcome(t, false, "窗口或工作区域已改变，请刷新后重新选择。")).ToArray(), NeedsRefresh: true);
             var selected = targets.ToArray();
-            operation = Task.Run(() => ApplyCore(selected, display, layout));
+            operation = Task.Run(() => ApplyCore(selected, display, layout, currentScreenOnly));
         }
         return await CollectWithinDeadline();
     }
 
-    private OperationReport ApplyCore(WindowTarget[] targets, DisplayArea display, WindowRect[] layout)
+    private OperationReport ApplyCore(WindowTarget[] targets, DisplayArea display, WindowRect[] layout, bool currentScreenOnly)
     {
         Snapshot[] originals;
         try
@@ -137,7 +143,7 @@ public sealed class WindowManager : IDisposable
             originals = targets.Select(target =>
             {
                 var source = DisplayFor(target.Handle);
-                if (!IdentityMatches(target) || !ContextMatches(target, source) || !Eligible(target.Handle))
+                if (!DisplayMatches(display) || !IdentityMatches(target) || !ContextMatches(target, source) || !Eligible(target.Handle, currentScreenOnly ? display : null))
                     throw new InvalidOperationException("窗口或工作区域已改变，请刷新。");
                 var placement = new Native.Placement { Length = System.Runtime.InteropServices.Marshal.SizeOf<Native.Placement>() };
                 if (!Native.GetWindowPlacement(target.Handle, ref placement)) throw new System.ComponentModel.Win32Exception();
@@ -155,10 +161,16 @@ public sealed class WindowManager : IDisposable
         {
             var target = targets[i];
             var snapshot = originals[i];
+            if (currentScreenOnly && !DisplayMatches(display))
+            {
+                outcomes.AddRange(targets.Skip(i).Select(t => new WindowOutcome(t, false, "目标屏幕或工作区域已改变，已停止后续排布。")));
+                break;
+            }
             try
             {
                 if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份发生变化。");
-                if (!ContextMatches(target, snapshot.Display) || Native.Monitor(display.Handle).Work.Value != display.WorkArea)
+                if (!ContextMatches(target, snapshot.Display) || !Eligible(target.Handle, currentScreenOnly ? display : null)
+                    || Native.Monitor(display.Handle).Work.Value != display.WorkArea)
                     throw new InvalidOperationException("窗口所属桌面或显示器已改变，请刷新。");
                 if (snapshot.State.Maximized)
                 {
@@ -198,6 +210,23 @@ public sealed class WindowManager : IDisposable
         }
         lock (sync) if (affected.Count > 0) undo = affected;
         return new(outcomes);
+    }
+
+    private static bool DisplayMatches(DisplayArea display)
+    {
+        try { return Native.Monitor(display.Handle).Work.Value == display.WorkArea; }
+        catch (InvalidOperationException) { return false; }
+    }
+
+    public bool TryReadOnScreen(WindowTarget target, DisplayArea display, out WindowStateInfo? state)
+    {
+        state = null;
+        try
+        {
+            if (!DisplayMatches(display) || !IdentityMatches(target) || !Eligible(target.Handle, display)) return false;
+            state = ReadState(target); return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
     }
 
     private bool ContextMatches(WindowTarget target, DisplayArea display) =>

@@ -16,7 +16,7 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(nint window);
     [DllImport("user32.dll")] internal static extern bool SetForegroundWindow(nint window);
     [DllImport("user32.dll", SetLastError = true)] internal static extern bool RegisterHotKey(nint window, int id, uint modifiers, uint key);
-    [DllImport("user32.dll")] internal static extern bool UnregisterHotKey(nint window, int id);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern bool UnregisterHotKey(nint window, int id);
     [DllImport("user32.dll")] internal static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] internal static extern bool EnumWindows(EnumProc callback, nint param);
     [DllImport("user32.dll")] internal static extern bool IsWindow(nint window);
@@ -42,6 +42,20 @@ internal static class Native
     [DllImport("user32.dll", SetLastError = true)] internal static extern nint SetWinEventHook(uint first, uint last, nint module, EventProc callback, uint process, uint thread, uint flags);
     [DllImport("user32.dll")] internal static extern bool UnhookWinEvent(nint hook);
 
+    [StructLayout(LayoutKind.Sequential)] internal struct Size { public int Width, Height; }
+    [StructLayout(LayoutKind.Sequential)] internal struct ThumbnailProperties
+    {
+        public uint Flags;
+        public Rect Destination, Source;
+        public byte Opacity;
+        [MarshalAs(UnmanagedType.Bool)] public bool Visible;
+        [MarshalAs(UnmanagedType.Bool)] public bool SourceClientAreaOnly;
+    }
+    [DllImport("dwmapi.dll")] internal static extern int DwmRegisterThumbnail(nint destination, nint source, out nint thumbnail);
+    [DllImport("dwmapi.dll")] internal static extern int DwmQueryThumbnailSourceSize(nint thumbnail, out Size size);
+    [DllImport("dwmapi.dll")] internal static extern int DwmUpdateThumbnailProperties(nint thumbnail, ref ThumbnailProperties properties);
+    [DllImport("dwmapi.dll")] internal static extern int DwmUnregisterThumbnail(nint thumbnail);
+    [DllImport("dwmapi.dll")] internal static extern int DwmFlush();
     internal static WindowRect Bounds(nint window)
     {
         if (Frame(window, 9, out var visible, 16) == 0) return visible.Value;

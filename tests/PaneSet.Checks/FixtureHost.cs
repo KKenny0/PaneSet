@@ -13,7 +13,8 @@ internal static class FixtureHost
     public static int Run(int count = 3)
     {
         var app = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
-        bool linked = false, minimizeLinked = false;
+        bool linked = false, minimizeLinked = false, closeLinked = false;
+        (int X, int Y)? linkedPosition = null;
         var windows = Enumerable.Range(0, count).Select(i => new Window
         {
             Title = i < 3 ? new[] { "采购合同 · 初稿", "采购合同 · 修订稿", "报价清单" }[i] : $"参考资料 {i + 1}",
@@ -26,6 +27,7 @@ internal static class FixtureHost
             windows[i].Show();
             HwndSource.FromHwnd(new WindowInteropHelper(windows[i]).Handle).AddHook((nint h, int m, nint w, nint l, ref bool handled) =>
             {
+                if (m == 0x201) windows[index].Title = "PaneSet fixture received a mouse click";
                 if (m == 0x46 && blocked.Contains(index))
                 {
                     var pos = Marshal.PtrToStructure<WindowPos>(l);
@@ -35,8 +37,9 @@ internal static class FixtureHost
                 if (m == 0x47 && index == 0 && linked)
                 {
                     linked = false;
-                    windows[1].Left += 80;
-                    if (minimizeLinked) windows[1].WindowState = WindowState.Minimized;
+                    if (closeLinked) windows[1].Close();
+                    else if (linkedPosition is { } destination) SetWindowPos(new WindowInteropHelper(windows[1]).Handle, 0, destination.X, destination.Y, 0, 0, 0x15);
+                    else { windows[1].Left += 80; if (minimizeLinked) windows[1].WindowState = WindowState.Minimized; }
                 }
                 return 0;
             });
@@ -53,12 +56,16 @@ internal static class FixtureHost
                     var parts = command.Split(' ');
                     switch (parts[0])
                     {
+                        case "untop": windows[int.Parse(parts[1])].Topmost = false; break;
+                        case "top": windows[int.Parse(parts[1])].Topmost = true; break;
                         case "position": SetWindowPos(new WindowInteropHelper(windows[int.Parse(parts[1])]).Handle, 0, int.Parse(parts[2]), int.Parse(parts[3]), 0, 0, 0x15); break;
                         case "close": windows[int.Parse(parts[1])].Close(); break;
                         case "max": windows[int.Parse(parts[1])].WindowState = WindowState.Maximized; break;
                         case "min": windows[int.Parse(parts[1])].WindowState = WindowState.Minimized; break;
                         case "block": blocked.Add(int.Parse(parts[1])); break;
                         case "link": linked = true; break;
+                        case "linkscreen": linked = true; linkedPosition = (int.Parse(parts[1]), int.Parse(parts[2])); break;
+                        case "linkclose": linked = true; closeLinked = true; break;
                         case "linkmin": linked = true; minimizeLinked = true; break;
                         case "unblock": blocked.Clear(); break;
                         case "long": windows[0].Title = string.Concat(Enumerable.Repeat("采购合同修订条款与付款条件对照 ", 24)); break;

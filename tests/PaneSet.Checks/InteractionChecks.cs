@@ -39,8 +39,8 @@ internal static partial class Program
     private static async Task CheckSingleInstance()
     {
         if (Process.GetProcessesByName("PaneSet").Any()) throw new UnavailableException("An existing PaneSet belongs to the user.");
-        string executable = Path.GetFullPath("src/PaneSet/bin/Release/net10.0-windows/PaneSet.exe");
-        if (!File.Exists(executable)) throw new Exception("Run this check from the repository root after building.");
+        string executable = Path.Combine(AppContext.BaseDirectory, "PaneSet.exe");
+        if (!File.Exists(executable)) throw new Exception("Build PaneSet.Checks with its PaneSet project reference before this check.");
         static async Task<nint> Opened(Process process)
         {
             nint handle = 0;

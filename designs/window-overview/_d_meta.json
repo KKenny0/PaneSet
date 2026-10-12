@@ -1,0 +1,19 @@
+{
+  "type": "design",
+  "designSystems": [],
+  "primaryDesignSystem": null,
+  "assets": {
+    "window-overview-prototype": {
+      "versions": [
+        {
+          "path": "window-overview-prototype.html",
+          "createdAt": "2026-10-10T10:28:00.903Z",
+          "status": "needs-review",
+          "subtitle": "方案1及Q4–Q6规则已确认；HTML尚未加入前移/后移，模拟检查不代表原生验收"
+        }
+      ]
+    }
+  },
+  "createdAt": "2026-10-10T10:28:00.904Z",
+  "updatedAt": "2026-10-10T10:28:00.904Z"
+}

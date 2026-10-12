@@ -1,0 +1,27 @@
+[
+  {
+    "case": "overview",
+    "passed": true,
+    "output": "PASS overview\n\nRESULT passed=1, failed=0, unavailable=0\n\n"
+  },
+  {
+    "case": "quick-flow",
+    "passed": false,
+    "output": "RESULT passed=0, failed=1, unavailable=0\n\nFAIL quick-flow: System.Exception: Mouse target is not the fixture-owned window; injection refused. expected=10882698, actual=11346842, actualPid=64792, actualClass=Chrome_RenderWidgetHostHWND, actualRoot=20325302, foreground=20325302, point=1117,449, bounds=WindowRect { X = 870, Y = 375, Width = 820, Height = 730 }, visible=True, minimized=False, enabled=True, dpi=96, awareness=2\n\n   at PaneSet.Checks.Program.ClickNativeOwned(IntPtr handle, Point native) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 86\n\n   at PaneSet.Checks.Program.ClickOwned(Window window, FrameworkElement control) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 78\n\n   at PaneSet.Checks.Program.PreparePickerHost(MainWindow panel) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 119\n\n   at PaneSet.Checks.Program.OpenPickerForFixture(MainWindow panel, IntPtr foreground, WindowTarget[] targets) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 126\n\n   at PaneSet.Checks.Program.CheckQuickFlow() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 156\n\n   at PaneSet.Checks.Program.CheckQuickFlow() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 186\n\n   at PaneSet.Checks.Program.<>c__DisplayClass44_0.<<Main>b__0>d.MoveNext() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\Program.cs:line 314\n\n"
+  },
+  {
+    "case": "quick-input",
+    "passed": false,
+    "output": "FAIL quick-input: System.Exception: Mouse target is not the fixture-owned window; injection refused. expected=24846236, actual=11346842, actualPid=64792, actualClass=Chrome_RenderWidgetHostHWND, actualRoot=20325302, foreground=20325302, point=1117,449, bounds=WindowRect { X = 870, Y = 375, Width = 820, Height = 730 }, visible=True, minimized=False, enabled=True, dpi=96, awareness=2\n   at PaneSet.Checks.Program.ClickNativeOwned(IntPtr handle, Point native) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 86\n   at PaneSet.Checks.Program.ClickOwned(Window window, FrameworkElement control) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 78\n   at PaneSet.Checks.Program.PreparePickerHost(MainWindow panel) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 119\n   at PaneSet.Checks.Program.OpenPickerForFixture(MainWindow panel, IntPtr foreground, WindowTarget[] targets) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 126\n   at PaneSet.Checks.Program.CheckQuickInput() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 229\n   at PaneSet.Checks.Program.CheckQuickInput() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 246\n   at PaneSet.Checks.Program.<>c__DisplayClass44_0.<<Main>b__0>d.MoveNext() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\Program.cs:line 314\nRESULT passed=0, failed=1, unavailable=0\n"
+  },
+  {
+    "case": "global-quick-input",
+    "passed": true,
+    "output": "PASS global-quick-input\nRESULT passed=1, failed=0, unavailable=0\n"
+  },
+  {
+    "case": "quick-invalid",
+    "passed": false,
+    "output": "FAIL quick-invalid: System.Exception: Mouse target is not the fixture-owned window; injection refused. expected=364978058, actual=11346842, actualPid=64792, actualClass=Chrome_RenderWidgetHostHWND, actualRoot=20325302, foreground=20325302, point=1117,449, bounds=WindowRect { X = 870, Y = 375, Width = 820, Height = 730 }, visible=True, minimized=False, enabled=True, dpi=96, awareness=2\n   at PaneSet.Checks.Program.ClickNativeOwned(IntPtr handle, Point native) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 86\n   at PaneSet.Checks.Program.ClickOwned(Window window, FrameworkElement control) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 78\n   at PaneSet.Checks.Program.PreparePickerHost(MainWindow panel) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 119\n   at PaneSet.Checks.Program.OpenPickerForFixture(MainWindow panel, IntPtr foreground, WindowTarget[] targets) in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 126\n   at PaneSet.Checks.Program.CheckQuickInvalid() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 197\n   at PaneSet.Checks.Program.CheckQuickInvalid() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\ScreenSelectionChecks.cs:line 217\n   at PaneSet.Checks.Program.<>c__DisplayClass44_0.<<Main>b__0>d.MoveNext() in D:\\VibeProject\\product\\paneset\\tests\\PaneSet.Checks\\Program.cs:line 314\nRESULT passed=0, failed=1, unavailable=0\n"
+  }
+]

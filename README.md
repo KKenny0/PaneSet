@@ -1,53 +1,84 @@
 # PaneSet
 
-临时选出需要对照的窗口，选择屏幕，一次排好。
+English | [简体中文](README_zh.md)
 
-PaneSet（窗口组）是当前工作名。Windows 原型支持跨显示器选窗、多窗布局、大列表、面板内布局键、主动载入最近窗口组和恢复。全局快捷键保留独立的输入验收状态。macOS 尚未实现。
+Quickly gather windows to compare, pick a screen, and tile them in one go — restore with a single shortcut when you're done.
 
-## 启动与使用
+When you have a cluttered desktop and just need to cross-reference two or three documents, dragging and resizing windows one by one is tedious. PaneSet doesn't force you into rigid window management rules or pre-configured workspaces: pick what you need right now, tile them onto any screen, and put them back when you're finished.
 
-双击 [run.cmd](run.cmd)。本机已准备局部 SDK；新机器首次启动会下载并校验 .NET 10 SDK，后续使用项目内工具链构建和运行。重复启动会唤起已有面板，避免产生两份恢复记录。
+> Currently a Windows prototype (macOS planned).
 
-1. 打开需要对照的普通窗口，启动 PaneSet，或在运行期间按 **Ctrl+Alt+Space**。
-2. 从当前虚拟桌面的各屏幕选择至少两扇窗口。列表标明来源屏幕，编号对应布局顺序；搜索不会清除选择。
-3. 在“排布到”选择目标显示器，在布局菜单选择自动、等宽并排、一主多辅或网格，也可按 **Alt+1 / Alt+2 / Alt+3** 切换后三种布局的预览。自动布局在两三窗时并排，四窗以上使用网格；一主多辅以 1 号为主窗口。三窗以上可“轮换顺序”。
-4. 点击“排布所选窗口”或按 **Enter**。只有明确选择的窗口会被移动到目标屏幕，完全成功后面板收起。
-5. 按 **Ctrl+Alt+Z**，或从任务栏打开面板点击“恢复上次排布”，恢复受影响窗口各自的原屏幕、位置、大小和最大化状态。
-6. 需要再次调整同一组时，点击 **调整最近组**，检查载入的成员、顺序、目标和布局，再确认排布。载入本身不移动窗口；关闭或最小化的成员不会换成同应用其他窗口，目标屏幕不可用时须重新选择。
+---
 
-| 快捷操作 | 行为 |
+## Quick Start
+
+For a fixed local Windows x64 preview package, see the [trial guide and known limitations (Chinese)](docs/TRIAL.md). The ZIP includes the .NET runtime; extract it and run `PaneSet.exe`.
+
+To build from source, double-click [run.cmd](run.cmd) in the root directory.
+
+- **First Run**: Automatically sets up a local, portable .NET toolchain without requiring global SDK installation.
+- **Subsequent Runs**: Brings the existing instance to the foreground rather than launching duplicate processes.
+- **Exit**: Click "Exit" in the panel to quit completely and release all registered global hotkeys.
+
+---
+
+## How to Use
+
+### 1. Core Workflow: Pick & Tile Across Displays
+1. **Open Panel**: Press `Ctrl+Alt+Space` to summon the main panel (the currently active window is pre-selected).
+2. **Select Windows**: Check the windows you want to compare (supports multiple screens; search by app name or window title; numbers indicate layout order).
+3. **Choose Layout**:
+   - Supports **Side-by-side** (`Alt+1`), **Main + Sidecars** (`Alt+2`), **Grid** (`Alt+3`), or **Auto** (splits 2–3 windows, grids 4+).
+   - Live layout preview updates on the right; press `Alt+S` to cycle window order.
+4. **Tile**: Select your target display and press `Enter`. Windows move into place immediately, and the panel tucks away.
+5. **One-Click Restore**: Done comparing? Press `Ctrl+Alt+Z` (or click "Restore last layout" in the panel) to instantly return all affected windows to their original positions, sizes, and screens.
+
+### 2. Single-Screen Shortcuts (Fast Path)
+If you only need to organize windows on your active screen without opening the full panel:
+- **`Ctrl+Alt+1` (Auto Tile)**: Instantly tiles all visible windows on the active screen.
+- **`Ctrl+Alt+2` (Thumbnail Quick Pick)**: Opens a compact thumbnail grid for the current screen. Even windows buried completely behind others can be spotted and selected visually. Press `Enter` to tile, or `Esc` to cancel.
+
+### 3. Tweak the Previous Selection (Recent Group)
+If you want to swap the order or switch the layout of the windows you just arranged, open the panel and click **"Tweak Recent Group"** to reload the last members and settings without hunting for windows again.
+
+---
+
+## Hotkey Reference
+
+Global hotkeys can be customized or disabled under **Settings** in the main panel (configuration is saved in `%LOCALAPPDATA%/PaneSet/settings.json`).
+
+| Scope | Shortcut | Description |
+| --- | --- | --- |
+| **Global** | `Ctrl+Alt+Space` | Summon / hide the main PaneSet panel |
+| **Global** | `Ctrl+Alt+Z` | Restore windows to their pre-tiling state |
+| **Global** | `Ctrl+Alt+1` | Auto-tile all windows on the current screen |
+| **Global** | `Ctrl+Alt+2` | Open thumbnail quick-pick for the current screen |
+| **In Panel** | `Alt+1 / 2 / 3` | Preview layouts: Side-by-side / Main + Sidecars / Grid |
+| **In Panel** | `Alt+S` | Cycle window order (swap pairs or move #1 to end) |
+| **In Panel** | `Ctrl+F` | Focus search box |
+| **In Panel** | `Tab` / `Space` | Navigate focus / Toggle selection |
+| **In Panel** | `Enter` | Confirm and tile windows |
+| **In Panel** | `Esc` | Hide panel (or cancel quick-pick selection) |
+
+> **Note**: If an application enforces its own minimum window size and cannot shrink further, consider switching to a grid layout or selecting fewer windows.
+
+---
+
+## Architecture & Verification
+
+- **Tech Stack**: C# / .NET 10, WPF, Win32 API (no external third-party runtime dependencies).
+- **Project Structure**: Main application lives in [src/PaneSet](src/PaneSet/PaneSet.csproj); automated checks and tests are in [tests/PaneSet.Checks](tests/PaneSet.Checks/PaneSet.Checks.csproj).
+- **Run Verification**: Double-click [verify.cmd](verify.cmd) to execute layout math tests and live controlled-window interaction suites.
+- **Test Details**: Real-world screenshots, system environment notes, and test records can be found in [Validation Log](docs/VALIDATION.md).
+
+---
+
+## Documentation
+
+| Document | Purpose |
 | --- | --- |
-| Ctrl+Alt+Space | 全局打开面板，默认选中当前窗口；面板已有焦点时收起。 |
-| Ctrl+Alt+Z | 全局恢复最近一次受影响的窗口组。 |
-| Ctrl+F | 面板内聚焦搜索。 |
-| Tab / 空格 | 面板内移动焦点、选择窗口。 |
-| Alt+1 / Alt+2 / Alt+3 | 面板内切换等宽、主辅、网格预览，确认后才移动窗口。 |
-| Alt+S | 交换两窗左右；多窗时将 1 号移到末尾。 |
-| Enter | 应用当前预览。 |
-| Esc / 关闭按钮 / 收起 | 最小化到任务栏，保留快捷键、最近组及恢复记录。 |
-| 退出 | 结束应用，清除最近组和恢复记录并释放快捷键。 |
-
-正常尺寸使用左列表、右设置与预览，短标题 fixture 可完整显示 6 行；窄窗口默认折叠预览。最近组只记住本进程最后一次整组最终成功的排布，失败保留旧组。每次实际排布仍读取最新状态；连续换布局后恢复到最近一次有实际影响的排布前，无变化的成功不清除原恢复记录。
-
-全局快捷键只在 PaneSet 运行期间有效。被其他程序占用时，面板提示对应快捷键不可用，仍可使用任务栏和按钮。收起后继续运行，明确点击“退出”才结束；本轮没有自动开机启动。
-
-应用约束可能阻止排布。预期尺寸小于 240 × 160 物理像素时提前拒绝，改用网格或减少选择；应用实际最小尺寸仍可能更大。部分失败逐窗报告，保留受影响目标的恢复记录。目标未响应时阻止新的排布和恢复，原操作完成后解除；此时退出会明确提示恢复记录丢失、已发出的请求可能稍后生效。
-
-## 验证与实现
-
-双击 [verify.cmd](verify.cmd)，运行布局计算、真实受控窗口操作和面板验证。单项检查可执行 `verify.cmd --case cross-monitor`、`--case shortcuts`、`--case shortcut-routing`、`--case local-layout-keys`、`--case local-layout-routing`、`--case recent-group` 或 `--case ui-many`。当前完整检查扩展为 34 项；最新运行结果及真实输入的未完成项见[验收记录](docs/VALIDATION.md)。独立消息路由和合成局部键不能替代实际按键验收。
-
-代码使用 C#、WPF 和 Win32，位于 [src/PaneSet](src/PaneSet/PaneSet.csproj)，检查位于 [tests/PaneSet.Checks](tests/PaneSet.Checks/PaneSet.Checks.csproj)。没有额外第三方运行依赖，局部 SDK 位于忽略跟踪的 `.tools/`。
-
-本机为 Windows 10 Pro 22H2 x64，两台显示器均为 100% 缩放，任务栏在上方。[验收记录](docs/VALIDATION.md)列出实测结果、截图和边界。该系统未列入 .NET 10 官方支持范围，实测运行不代表官方支持或任意应用兼容。
-
-## 文档入口
-
-| 文档 | 用途 |
-| --- | --- |
-| [产品定义](docs/PRODUCT.md) | 核心痛点、当前范围与产品价值验证。 |
-| [Windows 方案](docs/WINDOWS_PLAN.md) | 筛选、布局、跨屏坐标、恢复和快捷键生命周期。 |
-| [研究依据](docs/REFERENCES.md) | 竞品、Loop 与 Windows 官方资料。 |
-| [已确认配置](docs/SETUP_REVIEW.md) | 工程配置和已确认的测试边界。 |
-| [验收记录](docs/VALIDATION.md) | 本机运行结果、检查和截图。 |
-| [当前任务](.scratch/multi-window-controls/issues/01-displays-layouts-shortcuts.md) | 多显示器、多窗和快捷操作的实施状态。 |
+| [Product Definition](docs/PRODUCT.md) | Core problem statement, product scope, and principles. |
+| [Windows Architecture Plan](docs/WINDOWS_PLAN.md) | Window filtering, layout algorithms, coordinates, and restoration. |
+| [Research & References](docs/REFERENCES.md) | Competitive analysis and native Windows API research. |
+| [Setup Review](docs/SETUP_REVIEW.md) | Test environment baselines and project configuration. |
+| [Validation Log](docs/VALIDATION.md) | Test runs, screenshots, and verified boundaries. |

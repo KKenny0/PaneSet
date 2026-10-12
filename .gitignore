@@ -5,3 +5,4 @@
 artifacts/*.log
 artifacts/q2-*.json
 artifacts/q2-*.pid
+/dist/

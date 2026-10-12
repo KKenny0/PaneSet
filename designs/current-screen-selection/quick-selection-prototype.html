@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PaneSet · 本屏快速选窗交互原型</title>
+<style>
+:root { --ink:#203d34; --muted:#586b62; --green:#27664e; --pale:#e4eee4; --line:#d1dcd2; --paper:#f8faf6; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:15px/1.6 "Segoe UI","Microsoft YaHei",sans-serif; }
+button,select { font:inherit; }
+button { border:1px solid var(--line); background:white; color:var(--ink); border-radius:6px; padding:8px 13px; cursor:pointer; }
+button:hover { background:var(--pale); }
+button:focus-visible,select:focus-visible { outline:3px solid var(--green); outline-offset:3px; }
+button:disabled { opacity:.45; cursor:default; }
+button.primary { background:var(--green); border-color:var(--green); color:white; }
+button.primary:hover { background:#1c503d; }
+button[aria-pressed="true"] { background:var(--pale); border-color:var(--green); }
+[hidden] { display:none !important; }
+header,main { max-width:1440px; margin:auto; padding:20px 28px; }
+header { display:flex; align-items:start; justify-content:space-between; gap:24px; border-bottom:1px solid var(--line); }
+h1 { margin:0 0 5px; font-size:26px; font-weight:650; }
+p { margin:0; }
+.description { color:var(--muted); max-width:860px; }
+.label { display:inline-flex; padding:4px 9px; border:1px solid var(--line); border-radius:4px; font-size:12px; white-space:nowrap; }
+.actions { display:flex; align-items:center; flex-wrap:wrap; gap:9px; margin-bottom:12px; }
+.actions .hint { color:var(--muted); font-size:13px; margin-left:auto; }
+kbd { font:12px "Segoe UI",sans-serif; padding:1px 5px; border:1px solid #bdcabe; border-radius:3px; background:#fff; color:var(--ink); }
+.screen-grid { display:grid; grid-template-columns:minmax(0,1fr) 210px; gap:18px; }
+.monitor-head { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:8px 0; font-size:13px; }
+.monitor-head span { color:var(--muted); }
+.workspace-wrap { width:100%; overflow:hidden; position:relative; border:1px solid #aebeaf; border-radius:9px; background:#dce5d9; }
+.workspace { width:960px; height:560px; position:relative; transform-origin:top left; background:#dce5d9; }
+.workspace.selecting { background:#d4e2d5; }
+.desktop-label { position:absolute; left:24px; bottom:24px; color:#51664f; font-size:13px; }
+.window { position:absolute; border:1px solid #aab7ac; border-radius:5px; background:#fafbf8; overflow:hidden; box-shadow:0 5px 12px #203d3414; }
+.window.selected { outline:3px solid var(--green); outline-offset:2px; }
+.titlebar { height:37px; display:flex; align-items:center; gap:8px; padding:0 10px; background:#eef1eb; border-bottom:1px solid #d1dbcf; font-size:13px; }
+.titlebar strong { font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.app-icon { width:21px; height:21px; background:#d7e3d5; color:var(--green); display:grid; place-items:center; font-size:12px; font-weight:700; border-radius:3px; flex-shrink:0; }
+.window-controls { margin-left:auto; font-size:17px; color:#677368; }
+.select-mark { position:absolute; right:8px; top:5px; padding:1px 10px; min-width:47px; height:27px; border-color:var(--green); font-size:12px; z-index:2; }
+.select-mark[aria-pressed="true"] { background:var(--green); color:white; }
+.window-content { padding:18px 22px; color:#4b5e51; font-size:13px; }
+.window-content h2 { font-size:21px; font-weight:600; line-height:1.4; margin:0 0 13px; }
+.window-content p { margin:7px 0; }
+.lines { height:8px; background:#e2e8df; margin:11px 0; width:90%; }
+.lines.short { width:64%; }
+.document-page { background:white; padding:18px; border:1px solid #e1e6dc; }
+.code { font:12px/1.8 Consolas,monospace; white-space:pre-wrap; }
+.preview-cell { position:absolute; border:2px dashed var(--green); color:var(--green); background:#eaf2e835; display:flex; align-items:end; padding:12px; font-weight:700; pointer-events:none; z-index:30; }
+.preview-cell span { background:#fff; border:1px solid var(--green); border-radius:4px; padding:2px 7px; }
+.side-monitor { height:230px; background:#e7e9e0; border:1px solid #bbc6b8; border-radius:8px; padding:18px 12px; }
+.side-window { background:white; border:1px solid #bbc6b8; border-radius:4px; }
+.side-title { background:#f0f2ec; border-bottom:1px solid #d4dcd0; padding:6px 8px; font-size:12px; }
+.side-body { padding:17px 10px; font-size:13px; }
+.side-note { color:var(--muted); font-size:13px; margin-top:12px; }
+.selection-tools { display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:12px; padding:12px; border:1px solid var(--green); border-radius:7px; background:#eff5ed; }
+.selection-tools .count { font-weight:650; margin-right:5px; }
+.selection-tools select { border:1px solid var(--line); border-radius:4px; padding:7px; background:#fff; color:var(--ink); }
+.selection-tools .keyhint { color:var(--muted); font-size:12px; }
+.selection-tools .confirm { margin-left:auto; }
+.candidates { margin-top:10px; background:white; padding:12px; border:1px solid var(--line); border-radius:7px; }
+.candidate-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:9px; font-size:13px; }
+.candidate-head span { color:var(--muted); }
+.candidate-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.candidate { text-align:left; display:flex; align-items:center; gap:10px; min-width:0; }
+.candidate .order { width:25px; height:25px; display:grid; place-items:center; background:#edf2e9; border:1px solid #bdcbbd; border-radius:4px; flex-shrink:0; }
+.candidate .title { display:block; font-size:13px; }
+.candidate .app { display:block; font-size:12px; color:var(--muted); }
+.status { margin:12px 0; min-height:24px; color:var(--green); }
+.lower { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(260px,1fr); gap:24px; border-top:1px solid var(--line); padding-top:18px; margin-top:20px; }
+h2.section-title { font-size:16px; margin:0 0 10px; }
+.scenario-tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
+.scenario-tabs button { padding:5px 10px; font-size:13px; }
+.walkthrough { display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; }
+.walkthrough button { font-size:13px; }
+.walkthrough button.done { background:var(--pale); }
+.scenario-description { color:var(--muted); font-size:13px; }
+.state-view { display:grid; grid-template-columns:105px minmax(0,1fr); gap:5px 12px; font-size:13px; margin:0; }
+.state-view dt { color:var(--muted); }
+.state-view dd { margin:0; overflow-wrap:anywhere; }
+footer { color:var(--muted); font-size:12px; margin-top:20px; padding-top:14px; border-top:1px solid var(--line); }
+@media(max-width:950px) { .screen-grid { grid-template-columns:minmax(0,1fr); } .secondary-screen .side-monitor { height:auto; min-height:150px; } .secondary-screen .side-window { max-width:320px; } .actions .hint { margin-left:0; width:100%; } .lower { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:600px) { header,main { padding:16px; } header { flex-direction:column; gap:8px; } h1 { font-size:22px; } .candidate-grid { grid-template-columns:minmax(0,1fr); } .selection-tools .confirm { margin-left:0; } }
+</style>
+</head>
+<body>
+<header>
+  <div><h1>PaneSet · 本屏快速选窗</h1><p class="description">这份原型用来体验：每次按 B 重新选出对照窗口，点选或按标题选择，确认后再排布。观察遮挡窗口、换组和取消是否清楚。</p></div>
+  <span class="label">模拟桌面 · 交互原型</span>
+</header>
+<main>
+  <div class="actions">
+    <button class="primary" data-action="enter">B · 进入选窗</button>
+    <button data-action="all">A · 排布本屏全部窗口</button>
+    <button data-action="undo" id="undo">恢复上次排布</button>
+    <button data-action="reset">重置演示</button>
+    <span class="hint">本页演示键：<kbd>B</kbd> 选窗 · <kbd>A</kbd> 全部 · <kbd>Enter</kbd> 确认 · <kbd>Esc</kbd> 取消</span>
+  </div>
+  <div class="screen-grid">
+    <section data-screen-label="当前屏幕">
+      <div class="monitor-head"><strong>显示器 1 · 本次操作范围</strong><span id="mode-label">正常桌面</span></div>
+      <div class="workspace-wrap" id="workspace-wrap"><div class="workspace" id="workspace"><div class="desktop-label">当前前台：浏览器 · 设计资料</div><div id="windows"></div><div id="preview"></div></div></div>
+      <div class="selection-tools" id="selection-tools" tabindex="-1" aria-label="本次选窗与布局" hidden>
+        <span class="count" id="count">已选 1 扇</span>
+        <button data-action="candidates" id="candidates-toggle" aria-expanded="false" aria-controls="candidates">所有窗口 · 4</button>
+        <select id="layout" aria-label="布局"><option value="automatic">自动布局</option><option value="columns">等宽并排 · Alt+1</option><option value="main">一主多辅 · Alt+2</option><option value="grid">网格 · Alt+3</option></select>
+        <span class="keyhint">编号是选择顺序；虚线只表示预览。</span>
+        <button class="primary confirm" data-action="apply" id="apply">排布 · Enter</button>
+        <button data-action="cancel">取消 · Esc</button>
+      </div>
+      <section class="candidates" id="candidates" aria-label="本屏所有窗口" hidden>
+        <div class="candidate-head"><strong>按标题选择，也能选到被遮挡的窗口</strong><span>Tab 移动焦点 · Space 勾选</span></div>
+        <div class="candidate-grid" id="candidate-grid"></div>
+      </section>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+    </section>
+    <aside class="secondary-screen" data-screen-label="其他屏幕">
+      <div class="monitor-head"><strong>显示器 2</strong><span>不参与操作</span></div>
+      <div class="side-monitor"><div class="side-window" id="secondary-window"><div class="side-title">浏览器 · 项目看板</div><div class="side-body">这一屏保持原样。<div class="lines"></div><div class="lines short"></div></div></div></div>
+      <p class="side-note">A 和 B 都只作用于显示器 1。副屏用来观察本次操作的范围。</p>
+    </aside>
+  </div>
+  <div class="lower">
+    <section aria-label="引导体验">
+      <h2 class="section-title">按场景体验</h2>
+      <div class="scenario-tabs" id="scenario-tabs" role="tablist" aria-label="体验场景"></div>
+      <div role="tabpanel" id="scenario-panel"><p class="scenario-description" id="scenario-description"></p><div class="walkthrough" id="walkthrough"></div></div>
+    </section>
+    <section aria-label="当前状态">
+      <h2 class="section-title">操作状态</h2>
+      <dl class="state-view"><dt>选择模式</dt><dd id="state-mode"></dd><dt>本次临时选择</dt><dd id="state-selection"></dd><dt>预览布局</dt><dd id="state-layout"></dd><dt>最近确认的成员</dt><dd id="state-applied"></dd><dt>可恢复的排布</dt><dd id="state-undo"></dd><dt>实际位置变化</dt><dd id="state-geometry"></dd></dl>
+    </section>
+  </div>
+  <footer>本页只模拟窗口与操作状态，不会读取或移动电脑上的应用窗口。A / B 是网页演示键，正式全局组合键尚未确定；本原型不证明 Windows 输入、遮挡识别或操作效率已验收。</footer>
+</main>
+<script>
+// PROTOTYPE: virtual desktop state only. No production window API or persistence.
+const names = { browser:'设计资料', pdf:'接口说明.pdf', editor:'布局实现.cs', notes:'阅读摘录' };
+const apps = { browser:'浏览器', pdf:'PDF 阅读器', editor:'编辑器', notes:'记事本' };
+const layoutNames = { automatic:'自动布局', columns:'等宽并排', main:'一主多辅', grid:'网格' };
+const fixtures = [
+  { id:'notes', x:110,y:85,w:350,h:195,z:1 },
+  { id:'editor',x:150,y:280,w:490,h:245,z:2 },
+  { id:'pdf',x:535,y:75,w:350,h:365,z:3 },
+  { id:'browser',x:65,y:35,w:440,h:280,z:4 }
+];
+function initial() { return { phase:'idle', windows:structuredClone(fixtures), selection:[], layout:'automatic', candidates:false, undo:null, applied:[], message:'按 B 开始临时选组，或按 A 直接整理本屏。', revision:0 }; }
+function rectangles(count, kind) {
+  const gap=12, width=936, height=536, ox=12, oy=12;
+  if (kind==='automatic') kind=count<4?'columns':'grid';
+  if (kind==='columns') return Array.from({length:count},(_,i)=>({x:ox+i*(width+gap)/count,y:oy,w:(width-gap*(count-1))/count,h:height}));
+  if (kind==='main') {
+    const mainWidth=(width-gap)*2/3, sideWidth=width-gap-mainWidth;
+    return [{x:ox,y:oy,w:mainWidth,h:height},...Array.from({length:count-1},(_,i)=>({x:ox+mainWidth+gap,y:oy+i*(height+gap)/(count-1),w:sideWidth,h:(height-gap*(count-2))/(count-1)}))];
+  }
+  const cols=Math.ceil(Math.sqrt(count)), rows=Math.ceil(count/cols);
+  return Array.from({length:count},(_,i)=>({x:ox+(i%cols)*(width+gap)/cols,y:oy+Math.floor(i/cols)*(height+gap)/rows,w:(width-gap*(cols-1))/cols,h:(height-gap*(rows-1))/rows}));
+}
+function sameGeometry(a,b) { return ['x','y','w','h'].every(key=>a[key]===b[key]); }
+function commit(state, members, layout, actionLabel) {
+  if(members.length<2) return {...state,message:'至少选择两扇窗口后才能排布。'};
+  const cells=rectangles(members.length,layout);
+  if(cells.some(r=>r.w<180||r.h<100)) return {...state,message:'演示区域放不下这组窗口，请改用网格。'};
+  const windows=state.windows.map(w=>{const i=members.indexOf(w.id);return i<0?w:{...w,...cells[i]};});
+  const changed=windows.some((w,i)=>!sameGeometry(w,state.windows[i]));
+  return {...state,phase:'idle',selection:[],candidates:false,windows,undo:changed?structuredClone(state.windows):state.undo,applied:[...members],revision:state.revision+(changed?1:0),message:actionLabel+'完成；可恢复到这次排布前的位置。'};
+}
+function reduce(state,action) {
+  switch(action.type) {
+    case 'enter': return {...state,phase:'selecting',selection:['browser'],candidates:false,message:'已选前台窗口。点选其他窗口的标记，或打开“所有窗口”。确认前不移动窗口。'};
+    case 'toggle': if(state.phase!=='selecting') return state; return {...state,selection:state.selection.includes(action.id)?state.selection.filter(id=>id!==action.id):[...state.selection,action.id],message:'已更新临时选择；按 Enter 确认，Esc 取消。'};
+    case 'layout': if(state.phase!=='selecting') return state; return {...state,layout:action.value,message:'已切换布局预览；实际窗口位置保持不变。'};
+    case 'candidates': return state.phase==='selecting'?{...state,candidates:!state.candidates}:state;
+    case 'apply': return state.phase==='selecting'?commit(state,state.selection,state.layout,'本屏已选窗口排布'):state;
+    case 'all': return state.phase==='selecting'?{...state,message:'正在选窗，请先确认或取消，再排布全部窗口。'}:commit(state,['browser','pdf','editor','notes'],'automatic','本屏全部窗口排布');
+    case 'cancel': return state.phase==='selecting'?{...state,phase:'idle',selection:[],candidates:false,message:'已取消本次选择。窗口位置和已有恢复记录保持原样。'}:state;
+    case 'undo': return state.phase==='idle'&&state.undo?{...state,windows:structuredClone(state.undo),undo:null,revision:state.revision+1,message:'已恢复上次排布前的位置。'}:state;
+    case 'reset': return initial();
+    default: return state;
+  }
+}
+const scenarios = [
+  { title:'可见窗口', description:'选浏览器和 PDF。执行前只出现选择标记与虚线预览；执行后其他窗口保持原样。', steps:[['进入选窗',[{type:'enter'}]],['选 PDF',[{type:'toggle',id:'pdf'}]],['确认排布',[{type:'apply'}]],['恢复原位置',[{type:'undo'}]]] },
+  { title:'被遮挡窗口', description:'“阅读摘录”完全被浏览器挡住。通过常驻的“所有窗口”入口找到标题，选中后与浏览器并排。', steps:[['进入选窗',[{type:'enter'}]],['打开所有窗口',[{type:'candidates'}]],['选阅读摘录',[{type:'toggle',id:'notes'}]],['确认排布',[{type:'apply'}]]] },
+  { title:'更换对照组', description:'先比较浏览器与 PDF，再换成浏览器与编辑器。再次按 B 始终进入选窗，不会立即应用上一组。', steps:[['先排浏览器与 PDF',[{type:'enter'},{type:'toggle',id:'pdf'},{type:'apply'}]],['再次进入选窗',[{type:'enter'}]],['改选编辑器',[{type:'candidates'},{type:'toggle',id:'editor'}]],['确认新组',[{type:'apply'}]]] },
+  { title:'取消与恢复', description:'先完成一次排布，再选择另一组并切预览。取消后，已有布局和恢复记录都保留；恢复仍能撤销之前的排布。', steps:[['先排浏览器与 PDF',[{type:'enter'},{type:'toggle',id:'pdf'},{type:'apply'}]],['重新选编辑器',[{type:'enter'},{type:'toggle',id:'editor'}]],['切主辅预览',[{type:'layout',value:'main'}]],['取消选择',[{type:'cancel'}]],['恢复之前排布',[{type:'undo'}]]] }
+];
+let state=initial(), scenarioIndex=0, stepIndex=0;
+const $=id=>document.getElementById(id);
+function escapeText(value) { return value.replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char])); }
+function dispatch(action) { state=reduce(state,action);render();if(action.type==='enter')$('selection-tools').focus(); }
+function markVisible(window) {
+  const x=window.x+window.w-32, y=window.y+18;
+  return !state.windows.some(other=>other.z>window.z&&x>other.x&&x<other.x+other.w&&y>other.y&&y<other.y+other.h);
+}
+function content(id) {
+  if(id==='editor') return '<div class="code">// 本屏布局\n\n窗口组 → 选择 → 确认\n\n取消：保留当前桌面\n恢复：回到上次排布前</div>';
+  if(id==='pdf') return '<div class="document-page"><h2>接口说明</h2><p>窗口组与布局操作</p><div class="lines"></div><div class="lines short"></div><div class="lines"></div></div>';
+  if(id==='notes') return '<h2>阅读摘录</h2><p>这扇窗口最初被完全遮挡。</p><div class="lines"></div>';
+  return '<h2>设计资料</h2><p>临时选出需要对照的几扇窗口。</p><div class="lines"></div><div class="lines short"></div><p>选择成员后确认排布。</p>';
+}
+function render() {
+  const selecting=state.phase==='selecting';
+  const focused=document.activeElement?.dataset?.focusKey;
+  $('workspace').classList.toggle('selecting',selecting);
+  $('mode-label').textContent=selecting?'选窗中 · 确认前保持原位置':'正常桌面';
+  $('windows').innerHTML=state.windows.map(w=>{
+    const order=state.selection.indexOf(w.id)+1, visible=markVisible(w);
+    return `<article class="window ${selecting&&order?'selected':''}" data-window="${w.id}" style="left:${w.x}px;top:${w.y}px;width:${w.w}px;height:${w.h}px;z-index:${w.z}"><div class="titlebar"><span class="app-icon">${apps[w.id][0]}</span><strong>${escapeText(names[w.id])}</strong><span class="window-controls">− □ ×</span></div><div class="window-content">${content(w.id)}</div>${selecting&&visible?`<button class="select-mark" data-action="toggle" data-id="${w.id}" data-focus-key="mark-${w.id}" aria-label="${order?'取消选择':'选择'}${names[w.id]}" aria-pressed="${!!order}">${order?'已选 '+order:'选择'}</button>`:''}</article>`;
+  }).join('');
+  $('preview').innerHTML=selecting&&state.selection.length>=2?rectangles(state.selection.length,state.layout).map((r,i)=>`<div class="preview-cell" style="left:${r.x}px;top:${r.y}px;width:${r.w}px;height:${r.h}px"><span>${i+1} · ${names[state.selection[i]]}</span></div>`).join(''):'';
+  $('selection-tools').hidden=!selecting;
+  $('candidates').hidden=!selecting||!state.candidates;
+  $('candidates-toggle').setAttribute('aria-expanded',String(state.candidates));
+  $('count').textContent=`已选 ${state.selection.length} 扇`;
+  $('layout').value=state.layout;
+  $('apply').disabled=state.selection.length<2;
+  $('undo').disabled=selecting||!state.undo;
+  document.querySelector('[data-action="all"]').disabled=selecting;
+  $('candidate-grid').innerHTML=['browser','pdf','editor','notes'].map(id=>{
+    const order=state.selection.indexOf(id)+1;
+    const w=state.windows.find(w=>w.id===id);
+    return `<button class="candidate" data-action="toggle" data-id="${id}" data-focus-key="candidate-${id}" aria-pressed="${!!order}"><span class="order">${order||'+'}</span><span><span class="title">${names[id]}</span><span class="app">${apps[id]}${markVisible(w)?'':' · 选择标记被遮挡'}</span></span></button>`;
+  }).join('');
+  $('status').textContent=state.message;
+  $('state-mode').textContent=selecting?'正在临时选窗':'未进入';
+  $('state-selection').textContent=state.selection.length?state.selection.map((id,i)=>`${i+1}. ${names[id]}`).join(' → '):'无';
+  $('state-layout').textContent=layoutNames[state.layout];
+  $('state-applied').textContent=state.applied.length?state.applied.map(id=>names[id]).join(' + '):'无';
+  $('state-undo').textContent=state.undo?'已保留一次排布前的位置':'无';
+  $('state-geometry').textContent=`${state.revision} 次（选择和预览不增加此项）`;
+  const scenario=scenarios[scenarioIndex];
+  $('scenario-tabs').innerHTML=scenarios.map((item,i)=>`<button role="tab" id="scenario-tab-${i}" data-scenario="${i}" aria-controls="scenario-panel" aria-selected="${i===scenarioIndex}" aria-pressed="${i===scenarioIndex}" tabindex="${i===scenarioIndex?0:-1}">${item.title}</button>`).join('');
+  $('scenario-panel').setAttribute('aria-labelledby',`scenario-tab-${scenarioIndex}`);
+  $('scenario-description').textContent=scenario.description;
+  $('walkthrough').innerHTML=scenario.steps.map(([label],i)=>`<button data-step="${i}" class="${i<stepIndex?'done':''}" ${i===stepIndex?'':'disabled'}>${i+1}. ${label}${i<stepIndex?' · 已完成':''}</button>`).join('');
+  if(focused) document.querySelector(`[data-focus-key="${focused}"]`)?.focus();
+  resizeDesktop();
+}
+function resizeDesktop() { const scale=$('workspace-wrap').clientWidth/960; $('workspace').style.transform=`scale(${scale})`;$('workspace-wrap').style.height=`${560*scale}px`; }
+document.addEventListener('click',event=>{
+  const button=event.target.closest('button');
+  if(!button||button.disabled) return;
+  if(button.dataset.scenario!==undefined) { scenarioIndex=Number(button.dataset.scenario);stepIndex=0;state=initial();render();return; }
+  if(button.dataset.step!==undefined) { const actions=scenarios[scenarioIndex].steps[stepIndex][1];for(const action of actions)state=reduce(state,action);stepIndex++;render();return; }
+  if(button.dataset.action==='reset')stepIndex=0;
+  if(button.dataset.action)dispatch({type:button.dataset.action,id:button.dataset.id});
+});
+$('layout').addEventListener('change',event=>dispatch({type:'layout',value:event.target.value}));
+document.addEventListener('keydown',event=>{
+  if(event.target.closest('[role="tablist"]')&&['ArrowLeft','ArrowRight'].includes(event.key)) {
+    event.preventDefault();scenarioIndex=(scenarioIndex+(event.key==='ArrowRight'?1:scenarios.length-1))%scenarios.length;stepIndex=0;state=initial();render();$(`scenario-tab-${scenarioIndex}`).focus();return;
+  }
+  if(event.repeat)return;
+  const key=event.key.toLowerCase();
+  if(!event.ctrlKey&&!event.altKey&&!event.metaKey&&!event.shiftKey&&['a','b'].includes(key)&&event.target.tagName!=='SELECT') { event.preventDefault();dispatch({type:key==='b'?'enter':'all'});return; }
+  if(state.phase!=='selecting')return;
+  if(event.key==='Escape') { event.preventDefault();dispatch({type:'cancel'});document.querySelector('[data-action="enter"]').focus();return; }
+  if(event.key==='Enter'&&!event.ctrlKey&&!event.altKey&&!event.metaKey&&!event.shiftKey&&event.target.tagName!=='SELECT'&&!event.target.closest('button[data-action="cancel"],button[data-action="candidates"],button[data-action="enter"],button[data-action="reset"],button[data-scenario],button[data-step]')) { event.preventDefault();dispatch({type:'apply'});document.querySelector('[data-action="enter"]').focus();return; }
+  if(event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.shiftKey&&['1','2','3'].includes(event.key)) { event.preventDefault();dispatch({type:'layout',value:{'1':'columns','2':'main','3':'grid'}[event.key]}); }
+});
+window.addEventListener('resize',resizeDesktop);
+// Read-only inspection entry for browser QA; actions still go through actual clicks/keys.
+window.prototypeSnapshot=()=>structuredClone(state);
+render();
+</script>
+</body>
+</html>

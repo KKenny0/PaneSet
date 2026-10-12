@@ -1,0 +1,27 @@
+[
+  {
+    "case": "quick-flow",
+    "passed": true,
+    "log": "input-diagnosis-host.log"
+  },
+  {
+    "case": "global-quick-input",
+    "passed": true,
+    "log": "input-diagnosis-alt.log"
+  },
+  {
+    "case": "quick-cancel-undo",
+    "passed": true,
+    "log": "input-diagnosis-cancel.log"
+  },
+  {
+    "case": "quick-input",
+    "passed": true,
+    "log": "input-diagnosis-quick-input.log"
+  },
+  {
+    "case": "quick-invalid",
+    "passed": true,
+    "log": "input-diagnosis-quick-invalid.log"
+  }
+]

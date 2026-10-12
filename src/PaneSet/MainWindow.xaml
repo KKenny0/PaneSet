@@ -50,11 +50,20 @@
       <RowDefinition Height="Auto"/><RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <Grid Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <Grid Margin="0,0,0,16"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
       <StackPanel><TextBlock Text="PaneSet" FontSize="28" FontWeight="SemiBold"/>
-        <TextBlock Text="从各屏幕选窗，集中排布。" Foreground="{StaticResource Muted}" Margin="0,5,0,0"/>
+        <TextBlock Text="跨屏选窗，集中排布。" Foreground="{StaticResource Muted}" Margin="0,5,0,0"/>
       </StackPanel>
-      <Button x:Name="RefreshButton" Grid.Column="1" Content="刷新窗口" Click="RefreshClick" VerticalAlignment="Center" AutomationProperties.Name="刷新窗口"/>
+      <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,12,0">
+        <Button x:Name="ArrangeScreenButton" Content="A · 全部" Click="ArrangeScreenClick" Padding="10,8"
+                AutomationProperties.Name="排布本屏全部窗口" ToolTip="排布鼠标屏幕全部窗口；全局键优先采用前台应用所在屏幕"/>
+        <Button x:Name="QuickScreenButton" Content="B · 选窗" Click="QuickScreenClick" Padding="10,8" Margin="8,0,0,0"
+                AutomationProperties.Name="本屏快速选窗" ToolTip="每次进入新选择；Enter 排布，Esc 取消"/>
+      </StackPanel>
+      <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+        <Button x:Name="RefreshButton" Content="刷新窗口" Click="RefreshClick" AutomationProperties.Name="刷新窗口"/>
+        <Button x:Name="SettingsButton" Content="设置" Click="SettingsClick" Margin="8,0,0,0" AutomationProperties.Name="设置"/>
+      </StackPanel>
     </Grid>
     <Grid x:Name="BodyGrid" Grid.Row="1">
       <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="0"/></Grid.RowDefinitions>

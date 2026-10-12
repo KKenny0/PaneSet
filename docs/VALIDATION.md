@@ -1,8 +1,107 @@
 # Windows 多窗原型验收
 
-本轮在跨显示器选组、多窗布局和快捷入口上，完成大列表、局部布局键及主动载入最近窗口组。两个增量均完成 /check 范围审查与修复；最新隔离完整回归通过。期间真实输入检查仍出现过焦点失败，不能据随后一次通过认定稳定性问题已解决。
+## 输入诊断与取消恢复独立验证
 
-## 最新结果
+新增测试侧诊断：主面板准备失败记录 IsLoaded、可见/最小化状态、WPF/native Topmost、外框、前台句柄/类和焦点；Alt+1 失败记录前后状态、实际收到的 PreviewKeyDown/Up、修饰键、handled 及会话结束原因。Alt+1 注入前检查真实前台、会话就绪、键盘焦点及物理按键是否已有按下；未放宽原点击保护、延长等待或修改生产激活策略。
+
+新增 `quick-cancel-undo`：通过控件自动化选择布局并执行排布，再进入 B 改选成员和布局、取消，验证排布后几何和 HasUndo 不变，最后完整恢复最初几何。这是独立行为验证，不代替真实键盘或全局入口验收。完整入口现为 54 项。
+
+独立 Release 构建 0 警告/错误；本次 **5 PASS / 0 FAIL / 0 unavailable**：`quick-flow`、增强后的 `global-quick-input`、`quick-cancel-undo`、`quick-input`、`quick-invalid`。增强后的全局检查此次已走完取消保留已有 Undo 的新增断言。日志 `artifacts/input-diagnosis-host.log`、`input-diagnosis-alt.log`、`input-diagnosis-cancel.log`、`input-diagnosis-quick-input.log`、`input-diagnosis-quick-invalid.log`。
+
+本次只改测试和记录，生产代码不变。加入诊断后这次没有再次捕获遮挡或 Alt+1 失败，因此不能认为历史偶发问题根因已定位或被修复；原失败日志继续保留。未重跑完整 54 项。审查为同会话 Standards/Spec 自查，无独立双代理审查。配置 ReplaceFileW 的系统错误仍按问题 08 保持开放。
+
+## 空闲时段补验
+
+用户允许暂停输入后，前轮 5 个失败用例定向复查为 **2 PASS / 3 FAIL**：`overview` 完整通过，`global-quick-input` 原版本通过；`quick-flow`、`quick-input`、`quick-invalid` 均在主面板准备阶段命中 Chrome 而拒绝点击。不能把这些失败简单归咎人工干扰。
+
+随后加强 `global-quick-input`，把 Undo 放到第二次进入并取消之后，验证取消保留已有恢复记录。构建通过，但新版本在前置 Alt+1 布局等待处失败，尚未执行新增断言。原通过证据不覆盖增强版本；生产源码未改。见[任务 10](../.scratch/current-screen-selection/issues/10-stability-validation.md)，日志为 `artifacts/stability-idle-<case>.log` 和 `artifacts/stability-cancel-undo.log`。配置的系统替换问题仍维持下述调查结论。
+
+## 稳定性收尾首轮定向检查
+
+用户认可尺寸效果并授权稳定性验证及配置失败定位后，独立 Release 构建 0 警告/错误；定向 9 项为 **4 PASS / 5 FAIL / 0 unavailable**，未修改生产或测试源码。通过 `shortcut-settings`、`overview-size`、`overview-size-ui`、`quick-activation-failure`。失败 `overview`（真实卡片点击后选择状态等待）、`quick-flow`（WPF 窗口遮挡）、`quick-input`（已有物理按键按下）、`global-quick-input`（Zed 遮挡）、`quick-invalid`（Chrome 遮挡）。不是此前锁屏失败的重复结论。
+
+本次补齐 2/3/8 窗自适应面板真实尺寸、搜索保留、按钮可达、取消不改几何/Undo；真实合成截图为 `artifacts/paneset-overview-fit-2.png`、`-3.png`、`-8.png`。全局入口、顺序调整及取消保留已有 Undo 的完整流程仍未通过。证据见 `artifacts/stability-results.json` 与[任务 10](../.scratch/current-screen-selection/issues/10-stability-validation.md)。
+
+配置失败已在独立探针复现 `0x80070497`，并缩小到 Python 直接调用 Windows `ReplaceFileW` 返回 1175；去掉 PaneSet、JSON 和 .NET 仍能出现。失败后 Restart Manager 未找到占用者，过滤器查询被权限拒绝，具体触发者仍未知。未以一次事务检查通过关闭问题，未改保存算法或添加重试，见[问题 08](../.scratch/current-screen-selection/issues/08-settings-replace-failure.md)。
+
+## 总览初始尺寸调整
+
+用户反馈全工作区面板过大，现按本屏捕获候选数计算初始大小并居中，搜索或勾选不改变外框。Release 构建 0 警告、0 错误；`overview-size` 通过候选数、负坐标、多种 DPI 比例的几何检查。新完整入口为 53 项，本次只做相关定向检查，未重跑前轮全套。
+
+`overview-size-ui` 首次通过初始外框和搜索后外框不变断言，但在截图前面板已关闭，读取客户区失败，原因未捕获；补退出原因采集后再次运行，在 fixture 真实前台等待失败，未进入面板。保持失败，未放宽保护或反复注入；新尺寸的完整界面/截图与全局键验收未完成。具体范围见[任务 09](../.scratch/current-screen-selection/issues/09-overview-fit-size.md)。下面的总览截图和完整结果均早于此调整。
+
+## B 统一网格总览：当前交付
+
+用户确认 Q1–Q6 并授权实施后，B 已改为普通不透明 WPF 总览，加入 DWM 内容预览、稳定卡片、搜索、右侧前移/后移与低高度预览折叠。原共享本屏执行/Undo 与生产激活请求不变。源码和检查没有新增第三方依赖，未提交、推送或发布。
+
+### 运行结果与版本边界
+
+冻结源码的完整 51 项运行：**38 PASS / 13 FAIL / 0 unavailable**，退出码 1，94.38 秒，无超时，`source_changed=[]`。日志 `artifacts/overview-final-checks.log`；临时状态 `paneset-overview-status.json` 和清单 `paneset-overview-source.json`。不得报告全套通过。
+
+| 结果 | 范围 |
+| --- | --- |
+| 9 项命中保护失败 | overview、thumbnail、mouse-routing、quick-entry、quick-flow、quick-invalid、quick-input、global-quick-input、quick-activation-failure。前置点击或目标像素读取命中外部窗口，未继续注入或读取外部内容。主屏 PID 19500 的 CoreWindow 经只读进程查询确认为 LockApp；副屏命中 LockScreenInputOcclusionFrame。 |
+| 3 项前台/输入等待失败 | configured-input、shortcuts、local-layout-keys。实际前台条件未达成；保持失败，不延长等待、不改为 unavailable。 |
+| 1 项配置失败 | shortcut-settings 首次 Change 报告原子替换文件无法删除，见[问题 08](../.scratch/current-screen-selection/issues/08-settings-replace-failure.md)。独立于输入失败，根因未证明。 |
+| 38 项通过 | 包含布局、跨屏几何、恢复、本屏保护、部分影响、设置 UI、路由、最近组与原面板 UI。single-instance 当时仍硬编码原输出目录，实际运行旧构建，不能作为新总览版本的单实例证据；该路径随后修正为同构建目录，重建后单独运行 single-instance 为 1 PASS / 0 FAIL，补上当前产物证据。 |
+
+在桌面尚可交互时，新增两项分别有定向通过记录：
+
+- `thumbnail`：自建源窗口完全被不透明目标宿主覆盖，目标原生像素从红更新为绿；裁切区域外恢复宿主白底，注销后缩略图消失；源几何不变，无效 HWND 注册失败。验证实时合成，不是 WPF 单独截图。
+- `overview`：12 个受控窗口，默认前台第一；右侧移动顺序、筛选保留选组、标题变化不跳位、搜索 Enter 不提交、失效阻止确认、取消失效项后真实排布与 Undo。1440×900、1000×650、700×450 下实际读取按钮边界，低高度已选列表至少 70 DIP。定向通过后，又增加完整初始排序断言、真实卡片点击和按钮 Enter 操作，以及失效恢复后的缩略图处理/顺序按钮焦点保持；这些最终新增断言在后续运行中因 LockApp 前置阻挡而未执行，不能用先前通过替代。
+
+Release 构建 0 警告、0 错误；总览应用 `--probe` 退出码 0。完整回归之后仅修正单实例检查的产物路径，未改变生产总览源码；最终 Release 重建仍为 0 警告、0 错误，单实例定向检查通过。未解锁桌面、关闭用户进程或放宽所有权保护。
+
+### 截图与审查
+
+- 实际桌面合成：[900 高](../artifacts/paneset-overview-900-composed.png)、[650 高](../artifacts/paneset-overview-650-composed.png)、[450 高](../artifacts/paneset-overview-450-composed.png)。只截取受控总览宿主客户区，捕获前检查多个位置的窗口所有权；图中候选均来自 fixture。
+- 同名 `-wpf-only.png` 是 WPF 单独渲染，空白预览槽不代表 DWM 失败；它们不作为真实内容证据。
+- Standards / Spec 由同会话按 AGENTS、词汇表和规格自查；没有可用独立子代理，未完成并行双代理 code-review。Advisor 本次因与执行模型相同而禁用，不能声称有外部复核。
+- 修正低高度预览挤掉已选列表；失效成员释放缩略图，恢复有效后重新注册；顺序调整后保留仍可用按钮的键盘焦点。单实例测试启动旧产物的问题已修正，并完成当前产物的定向验证。
+
+仍待验证：最终真实全局 B/键盘与取消保留 Undo 回归、第三方与受保护内容、混合 DPI、物理输入法、Windows 11 官方支持基线和完整任务效率。DWM 返回成功也可能提供黑色或受保护画面，当前不能可靠区分合法黑色内容；应用名和标题始终保留。原漏标记的具体根因未定位；替换呈现不等于证明旧缺陷原因。
+
+## 前轮：本屏设置、A/B 增量
+
+设置、A 本屏全部排布、B 原生快速选窗已实现，共用原来的操作 guard、Undo 与最近成功记录。当时新增 15 项，完整入口为 49 项。这里分别记录全套运行、收尾定向检查及尚未完成的输入验收。
+
+冻结源码在独立构建目录完整运行：**45 PASS / 1 FAIL / 3 unavailable**，退出码 1，用时 82.33 秒，无超时，运行期间源码哈希未变化。日志为 `artifacts/current-screen-final-checks.log`；源码清单和退出状态保存在临时目录 `paneset-screen-source.json`、`paneset-screen-final-status.json`。Release 构建 0 警告、0 错误。用户的旧 PaneSet 进程占用原输出目录，因此用 SDK 的 `--artifacts-path` 构建到独立目录，未关闭旧实例或清除其恢复记录。
+
+- 15 项新增检查在这次完整运行中全部通过。
+- `local-layout-keys` 在最后普通数字输入检查前，等待主面板成为真实前台失败，位置为 `InteractionChecks.cs:411`；该次检查保持 FAIL，根因及其与本轮改动的关系尚未证明。它未完成最后一段普通数字断言，不能据新 B 通过宣布历史前台不稳定已解决。
+- `single-instance`、`shortcut-routing`、`shortcuts` 因已有用户实例或已注册的旧面板/恢复键不可运行，保持 unavailable。未停用户进程或用合成消息替换真实输入。这三项本轮没有新通过证据，前一轮记录保留在下文。
+
+完整运行后自查补充了 A 零/一窗与入口异常的可见反馈，统一用不激活方式显示主面板；增强恢复默认冲突/成功验证，以及候选标题的有限宽度换行。随后重建仍为 0 警告/错误，`screen-arrange`、`shortcut-settings`、`quick-activation-failure`、`settings-ui`、`quick-invalid` 五项各 1 PASS / 0 FAIL，日志分别为 `artifacts/current-screen-final-<case>.log`。原生 `--probe` 退出码 0。49 项全套早于这些收尾改动，未再次重复全套。最后有限宽度修正后，另一次 `global-quick-input` 定向检查也通过（1 PASS / 0 FAIL），日志为 `artifacts/current-screen-final-global-quick-input.log`，覆盖最终选窗源码的真实全局 B、排布/恢复及非 Topmost 再进入/取消。
+
+| 新检查 | 结果与证据范围 |
+| --- | --- |
+| shortcut-settings / settings-ui / configured-input | 临时配置、缺失与 null、损坏配置不覆盖、动态 ID、占用/重复、保存失败回滚、禁用、重启和释放；恢复 B 默认时占用失败保留旧键，释放占用后保存默认成功。真实新面板键及 A/B 回调触发、旧键停止触发；A 回调不执行用户桌面的全部排布。设置 700 高与 450 高、滚动到底部可触及 B 默认按钮通过。 |
+| screen-guard / screen-arrange | 严格本屏入口、两个显示器双向操作、普通/最大化、外屏 fixture 不变、零/一窗不改变已有布局和 Undo、工作区元数据改变拒绝。A 协调检查注入 fixture 候选，未直接执行用户已有桌面的 A 全排。 |
+| screen-partial / screen-eligibility / screen-member-move | 执行中首窗间接关闭、最小化或移屏第二窗；失败窗不被主动还原/拉回，其他有效项继续，直接/间接影响保留 Undo。移屏后的恢复失配保留记录，受控返回原屏后可重试恢复。 |
+| quick-entry / quick-flow / quick-invalid | 真实面板按钮进入；每次新成员、默认前台、标题候选、布局预览不移窗、取消保留已应用几何与 Undo、确认仅排选中 fixture、失效成员保留说明、零/一窗不可确认、内部弹出控件、外部失焦、完整长标题换行。流程内合成键路由与原生几何分别断言。 |
+| quick-input / global-quick-input | 真实 Space、Alt+1、Enter、Esc；布局下拉打开时第一次 Enter 仅接受选项、第二次才排布。真实自定义全局 B 从受控前台触发，在副屏排所选两窗并恢复；同一次用例又验证非 Topmost 前台进入与取消。其余 fixture 不变。 |
+| mouse-routing | 实际主按钮点击进入 fixture 客户区并改变测试标题，验证下层点击指示器有效。覆盖层防穿透检查同时要求收到逻辑主按钮 down/up，再确认下层标题未改变；不以 SendInput 返回数单独认定送达。 |
+| quick-activation-failure | 受控 ShowActivated=false 会话未取得前台，失败关闭且保持已有布局/Undo。该项验证选窗层 guard；Main 的激活失败反馈分支由源码审阅覆盖，没有稳定制造 OS 拒绝的端到端证据。 |
+
+### 本轮输入诊断与保留的失败
+
+早期直接调用选窗组件未建立原生前台前置，曾在 Ready 阶段失败；普通主面板激活请求也有返回 false 的日志。受控点击建立真实前台后组件可进入，但不能用这点解释所有外部干扰。真正注册的 B 从 fixture 前台收到 WM_HOTKEY 后，原 Show-only 路径曾因前台未转入而关闭；增加一次普通激活请求的对照记录为窗口可见、Activate=true、实际 foreground 等于 picker，并完成排布/Undo。最终保留普通请求及实际前台/键盘 guard，没有反复抢焦点或修改历史面板激活策略。
+
+鼠标早期注入未触发面板按钮。本机读取 `SM_SWAPBUTTON=1`，修正受控注入以物理右按钮代表逻辑主按钮后，mouse-routing 与按钮入口在完整回归中通过。注入前检查物理按钮均松开，不替用户释放预先按住的按钮；命中必须属于测试拥有的窗口。此前多次因命中 Desktop、pebrel 或 Chrome 子窗口而拒绝注入，其中一次点在可见/可用、DPI=96 的测试主窗矩形内却命中另一进程；没有据此统一归因为 WXWork、坐标错误或系统权限，也没有放宽命中断言。左右键映射是此次鼠标协议的具体问题，不用于解释历史键盘/前台失败。
+
+曾尝试 fixture 前台锁制造 Main 激活失败，但未稳定令 picker 关闭，超时保持失败；该测试设置最终移除，finally 已解锁，不将它算为生产回归修复或负向验收通过。最终没有临时激活诊断输出、前台锁策略或新的环境 skip。
+
+### 截图与实机边界
+
+设置截图 `paneset-settings-700.png`、`paneset-settings-450.png`、`paneset-settings-450-bottom.png`，以及 `paneset-native-selection.png`、`paneset-native-selection-invalid.png`、`paneset-native-selection-long-title.png` 已生成并读取。选窗图为 WPF 透明层单独渲染，未包含完整桌面合成；只能证明受控界面状态，不能当作真实桌面遮挡、输入或效率测量。
+
+本机仍是 Windows 10、两个显示器 96 DPI。受支持环境的验收基线为 .NET 10 官方支持的 Windows 11 x64 版本，尚未在该基线运行完整检查；当前 Windows 10 只有受控运行证据，不承诺正式支持或普遍兼容。物理键盘/中文输入法、第三方应用、混合 DPI、真实拔屏与工作区改变、完整任务成本仍待实机验收。网页原型的视觉认可和 28 项浏览器检查不替代这些证据。本轮未提交、推送或发布。
+
+## 前一轮：大列表与最近组
+
+前一轮在跨显示器选组、多窗布局和快捷入口上，完成大列表、局部布局键及主动载入最近窗口组。两个增量均完成 /check 范围审查与修复；当时隔离完整回归通过。期间真实输入检查仍出现过焦点失败，不能据随后一次通过认定稳定性问题已解决。
+
+### 当时的完整结果
 
 最终未加诊断的源码在独立工作树中完整运行 34 项：**34 通过、0 失败、0 跳过**，退出码 0，用时 59.23 秒。隔离输入为 HEAD `444a16a` 加冻结的完整前置状态与本轮 5 个源码/检查文件，19 个已有源码、配置和工具文件逐字节匹配预期；最终 5 个文件与主工作区一致。Release 重建 0 警告、0 错误；随后 `tools/run.ps1 --probe` 原生探针退出码 0。日志及结构化退出状态保存在忽略跟踪的 `artifacts/q2-final-isolated.log`、`q2-final-isolated.json`、`q2-final-probe.log` 和 `q2-final-probe.json`。
 
