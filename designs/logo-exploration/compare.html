@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PaneSet · Logo 候选对比</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f4f5f5; color: #20262b; }
+    main { max-width: 1600px; margin: 0 auto; padding: 32px clamp(16px, 3vw, 48px) 48px; }
+    h1 { margin: 0; font-size: clamp(24px, 2.4vw, 36px); letter-spacing: -.03em; }
+    .intro { margin: 8px 0 28px; color: #5d6871; line-height: 1.5; }
+    .groups { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    .group { min-width: 0; padding: 18px; border: 1px solid #e0e4e6; border-radius: 18px; background: #fff; }
+    .group h2 { margin: 0; font-size: 20px; }
+    .description { min-height: 2.8em; margin: 5px 0 18px; color: #657078; font-size: 14px; line-height: 1.4; }
+    .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    figure { min-width: 0; margin: 0; }
+    figure a { display: block; border-radius: 10px; overflow: hidden; background: #e9edef; }
+    img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; }
+    figcaption { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; color: #667078; font-size: 13px; }
+    figcaption strong { color: #253039; font-weight: 650; }
+    .hint { margin: 24px 0 0; color: #69747b; font-size: 13px; }
+    @media (max-width: 900px) { .groups { grid-template-columns: 1fr; } .description { min-height: 0; } .group { max-width: 720px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PaneSet Logo 候选对比</h1>
+    <p class="intro">A、B、C 三组并排展示。每组左图从画面左下进入，右图从画面右下进入；所有图片按相同尺寸显示。</p>
+    <div class="groups">
+      <section class="group" aria-labelledby="group-a">
+        <h2 id="group-a">A · 猫头鹰</h2>
+        <p class="description">双眼呼应观察与比较。</p>
+        <div class="pair">
+          <figure><a href="A1.png" target="_blank" rel="noopener" aria-label="打开 A1 原图"><img src="A1.png" alt="A1 猫头鹰，从左下进入画面"></a><figcaption><strong>A1</strong><span>左下</span></figcaption></figure>
+          <figure><a href="A2.png" target="_blank" rel="noopener" aria-label="打开 A2 原图"><img src="A2.png" alt="A2 猫头鹰，从右下进入画面"></a><figcaption><strong>A2</strong><span>右下</span></figcaption></figure>
+        </div>
+      </section>
+      <section class="group" aria-labelledby="group-b">
+        <h2 id="group-b">B · 海狸</h2>
+        <p class="description">整理与搭建，呼应窗口成组排布。</p>
+        <div class="pair">
+          <figure><a href="B1.png" target="_blank" rel="noopener" aria-label="打开 B1 原图"><img src="B1.png" alt="B1 海狸，从左下进入画面"></a><figcaption><strong>B1</strong><span>左下</span></figcaption></figure>
+          <figure><a href="B2.png" target="_blank" rel="noopener" aria-label="打开 B2 原图"><img src="B2.png" alt="B2 海狸，从右下进入画面"></a><figcaption><strong>B2</strong><span>右下</span></figcaption></figure>
+        </div>
+      </section>
+      <section class="group" aria-labelledby="group-c">
+        <h2 id="group-c">C · 窗口精灵</h2>
+        <p class="description">用相连的窗口形状直接表达产品用途。</p>
+        <div class="pair">
+          <figure><a href="C1.png" target="_blank" rel="noopener" aria-label="打开 C1 原图"><img src="C1.png" alt="C1 窗口精灵，从左下进入画面"></a><figcaption><strong>C1</strong><span>左下</span></figcaption></figure>
+          <figure><a href="C2.png" target="_blank" rel="noopener" aria-label="打开 C2 原图"><img src="C2.png" alt="C2 窗口精灵，从右下进入画面"></a><figcaption><strong>C2</strong><span>右下</span></figcaption></figure>
+        </div>
+      </section>
+    </div>
+    <p class="hint">点击图片可在新标签页查看原始尺寸（1254 × 1254）。</p>
+  </main>
+</body>
+</html>

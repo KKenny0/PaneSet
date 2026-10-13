@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PaneSet · 首轮 A/B/C 方向</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f5f7; color: #243244; }
+    main { max-width: 1160px; margin: auto; padding: 30px 20px 52px; }
+    h1 { margin: 0 0 7px; font-size: clamp(24px, 3vw, 34px); }
+    .intro { margin: 0 0 22px; color: #5c6b79; line-height: 1.55; }
+    .rows { display: grid; gap: 16px; }
+    .row { display: grid; grid-template-columns: 165px minmax(0, 1fr); gap: 20px; padding: 18px; background: #fff; border: 1px solid #dce3e9; border-radius: 16px; }
+    .label h2 { margin: 2px 0 8px; font-size: 21px; }
+    .label p { margin: 0; color: #617080; font-size: 14px; line-height: 1.5; }
+    .pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    figure { min-width: 0; margin: 0; }
+    figure a { display: block; overflow: hidden; border-radius: 10px; }
+    img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
+    figcaption { display: flex; justify-content: space-between; gap: 8px; padding-top: 7px; font-size: 13px; color: #627181; }
+    figcaption strong { color: #243244; }
+    @media (max-width: 680px) { .row { grid-template-columns: 1fr; gap: 12px; padding: 14px; } .pair { gap: 10px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PaneSet · 首轮三个方向</h1>
+    <p class="intro">A、B、C 各占一行，每行展示左下与右下构图。点击图片可查看原始尺寸。</p>
+    <div class="rows">
+      <section class="row" aria-labelledby="direction-a">
+        <div class="label"><h2 id="direction-a">A · 猫头鹰</h2><p>双眼呼应观察与比较。</p></div>
+        <div class="pair">
+          <figure><a href="A1.png" target="_blank" rel="noopener"><img src="A1.png" alt="首轮 A1 猫头鹰，左下构图"></a><figcaption><strong>A1</strong><span>左下</span></figcaption></figure>
+          <figure><a href="A2.png" target="_blank" rel="noopener"><img src="A2.png" alt="首轮 A2 猫头鹰，右下构图"></a><figcaption><strong>A2</strong><span>右下</span></figcaption></figure>
+        </div>
+      </section>
+      <section class="row" aria-labelledby="direction-b">
+        <div class="label"><h2 id="direction-b">B · 海狸</h2><p>整理与搭建，呼应窗口成组排布。</p></div>
+        <div class="pair">
+          <figure><a href="B1.png" target="_blank" rel="noopener"><img src="B1.png" alt="首轮 B1 海狸，左下构图"></a><figcaption><strong>B1</strong><span>左下</span></figcaption></figure>
+          <figure><a href="B2.png" target="_blank" rel="noopener"><img src="B2.png" alt="首轮 B2 海狸，右下构图"></a><figcaption><strong>B2</strong><span>右下</span></figcaption></figure>
+        </div>
+      </section>
+      <section class="row" aria-labelledby="direction-c">
+        <div class="label"><h2 id="direction-c">C · 窗口精灵</h2><p>相连的窗口形状直接表达产品用途。</p></div>
+        <div class="pair">
+          <figure><a href="C1.png" target="_blank" rel="noopener"><img src="C1.png" alt="首轮 C1 窗口精灵，左下构图"></a><figcaption><strong>C1</strong><span>左下</span></figcaption></figure>
+          <figure><a href="C2.png" target="_blank" rel="noopener"><img src="C2.png" alt="首轮 C2 窗口精灵，右下构图"></a><figcaption><strong>C2</strong><span>右下</span></figcaption></figure>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>

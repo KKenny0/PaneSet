@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C1 窗口精灵 · 六张并排</title>
+<style>
+:root { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; color: #203249; background: #f4f6f8; }
+* { box-sizing: border-box; }
+body { margin: 0; padding: 24px; }
+h1 { margin: 0 0 8px; font-size: 26px; }
+p { margin: 0 0 20px; color: #52647a; line-height: 1.5; }
+.strip { display: grid; grid-template-columns: repeat(6, minmax(200px, 1fr)); gap: 12px; min-width: 1260px; }
+.scroller { overflow-x: auto; padding-bottom: 12px; }
+.card { display: block; min-width: 0; overflow: hidden; border: 1px solid #dce3e9; border-radius: 14px; background: white; color: inherit; text-decoration: none; }
+.card img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; }
+.label { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; padding: 10px 12px 12px; }
+.label strong { font-size: 16px; }
+.label span { color: #607184; font-size: 12px; text-align: right; }
+</style>
+</head>
+<body>
+<h1>C1 窗口精灵 · 六张并排</h1>
+<p>六张独立变体按 A1–A6 排列。屏幕较窄时横向滚动；点击可打开原尺寸图片。</p>
+<div class="scroller"><div class="strip">
+<a class="card" href="A1.png"><img src="A1.png" alt="A1，横向主窗，左下"><div class="label"><strong>A1</strong><span>横向 · 左下</span></div></a>
+<a class="card" href="A2.png"><img src="A2.png" alt="A2，横向主窗，右下"><div class="label"><strong>A2</strong><span>横向 · 右下</span></div></a>
+<a class="card" href="A3.png"><img src="A3.png" alt="A3，紧凑主窗，左下"><div class="label"><strong>A3</strong><span>紧凑 · 左下</span></div></a>
+<a class="card" href="A4.png"><img src="A4.png" alt="A4，紧凑主窗，右下"><div class="label"><strong>A4</strong><span>紧凑 · 右下</span></div></a>
+<a class="card" href="A5.png"><img src="A5.png" alt="A5，更宽主窗，左下"><div class="label"><strong>A5</strong><span>更宽 · 左下</span></div></a>
+<a class="card" href="A6.png"><img src="A6.png" alt="A6，更宽主窗，右下"><div class="label"><strong>A6</strong><span>更宽 · 右下</span></div></a>
+</div></div>
+</body>
+</html>

@@ -7,5 +7,6 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\PaneSet.ico</ApplicationIcon>
   </PropertyGroup>
 </Project>

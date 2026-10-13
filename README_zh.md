@@ -1,12 +1,14 @@
-# PaneSet
-
-[English](README.md) | 简体中文
-
-临时挑出需要对照的几个窗口，选定屏幕，一键排好；对照完了，还能一键复原。
-
-平时桌面窗口堆了一堆，临时要对照两三份资料时，逐个拖动缩放非常繁琐。PaneSet 的思路是不破坏既有习惯，也不需要预先配置复杂的工作区——随用随选、一次排布、用完复原。
-
-> 当前为 Windows 原型阶段（macOS 规划中）。
+<div align="center">
+  <img src="designs/logo-exploration/c1-refinement/A1.png" alt="PaneSet Logo" width="120" />
+  <h1>PaneSet</h1>
+  <p><strong>临时挑出需要对照的几个窗口，选定屏幕，一键排好；对照完了，还能一键复原。</strong></p>
+  <p><a href="README.md">English</a> | 简体中文</p>
+  <p>
+    平时桌面窗口堆了一堆，临时要对照两三份资料时，逐个拖动缩放非常繁琐。<br />
+    PaneSet 的思路是不破坏既有习惯，也不需要预先配置复杂的工作区——随用随选、一次排布、用完复原。
+  </p>
+  <p><em>当前为 Windows 原型阶段（macOS 规划中）。</em></p>
+</div>
 
 ---
 

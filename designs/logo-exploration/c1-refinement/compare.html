@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>C1 窗口精灵 · 第二轮比较</title>
+<style>
+:root { color-scheme: light; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; background: #f4f6f8; color: #203249; }
+* { box-sizing: border-box; }
+body { max-width: 1100px; margin: 0 auto; padding: 28px 20px 56px; }
+h1 { font-size: 28px; margin: 0 0 8px; }
+p { line-height: 1.5; margin: 0 0 24px; color: #4e6077; }
+h2 { font-size: 18px; margin: 30px 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.card { background: white; border: 1px solid #dce3e9; border-radius: 16px; overflow: hidden; text-decoration: none; color: inherit; }
+.card img { width: 100%; aspect-ratio: 1; object-fit: contain; display: block; }
+.caption { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 14px 14px; }
+.caption strong { font-size: 16px; }
+.caption span { font-size: 13px; color: #607184; text-align: right; }
+.reference { max-width: 340px; }
+@media (max-width: 600px) { .grid { grid-template-columns: 1fr; } body { padding: 20px 14px 40px; } }
+</style>
+</head>
+<body>
+<h1>C1 窗口精灵 · 第二轮比较</h1>
+<p>六张是独立生成的原始图片。每组只改变主窗和小窗的比例与位置；左列从左下进入画面，右列从右下进入画面。点击可打开原尺寸 PNG。</p>
+<h2>首轮基准</h2>
+<a class="card reference" href="../C1.png"><img src="../C1.png" alt="首轮 C1 窗口精灵"><div class="caption"><strong>原版 C1</strong><span>首轮选定</span></div></a>
+<h2>第二轮 · 横向主窗</h2>
+<div class="grid">
+<a class="card" href="A1.png"><img src="A1.png" alt="A1 左下，横向主窗"><div class="caption"><strong>A1</strong><span>左下</span></div></a>
+<a class="card" href="A2.png"><img src="A2.png" alt="A2 右下，横向主窗"><div class="caption"><strong>A2</strong><span>右下</span></div></a>
+</div>
+<h2>第二轮 · 紧凑主窗</h2>
+<div class="grid">
+<a class="card" href="A3.png"><img src="A3.png" alt="A3 左下，紧凑主窗"><div class="caption"><strong>A3</strong><span>左下</span></div></a>
+<a class="card" href="A4.png"><img src="A4.png" alt="A4 右下，紧凑主窗"><div class="caption"><strong>A4</strong><span>右下</span></div></a>
+</div>
+<h2>第二轮 · 更宽主窗</h2>
+<div class="grid">
+<a class="card" href="A5.png"><img src="A5.png" alt="A5 左下，更宽主窗"><div class="caption"><strong>A5</strong><span>左下</span></div></a>
+<a class="card" href="A6.png"><img src="A6.png" alt="A6 右下，更宽主窗"><div class="caption"><strong>A6</strong><span>右下</span></div></a>
+</div>
+</body>
+</html>

@@ -1,12 +1,14 @@
-# PaneSet
-
-English | [简体中文](README_zh.md)
-
-Quickly gather windows to compare, pick a screen, and tile them in one go — restore with a single shortcut when you're done.
-
-When you have a cluttered desktop and just need to cross-reference two or three documents, dragging and resizing windows one by one is tedious. PaneSet doesn't force you into rigid window management rules or pre-configured workspaces: pick what you need right now, tile them onto any screen, and put them back when you're finished.
-
-> Currently a Windows prototype (macOS planned).
+<div align="center">
+  <img src="designs/logo-exploration/c1-refinement/A1.png" alt="PaneSet Logo" width="120" />
+  <h1>PaneSet</h1>
+  <p><strong>Quickly gather windows to compare, pick a screen, and tile them in one go — restore with a single shortcut when you're done.</strong></p>
+  <p>English | <a href="README_zh.md">简体中文</a></p>
+  <p>
+    When you have a cluttered desktop and just need to cross-reference two or three documents, dragging and resizing windows one by one is tedious.<br />
+    PaneSet doesn't force you into rigid window management rules or pre-configured workspaces: pick what you need right now, tile them onto any screen, and put them back when you're finished.
+  </p>
+  <p><em>Currently a Windows prototype (macOS planned).</em></p>
+</div>
 
 ---
 
