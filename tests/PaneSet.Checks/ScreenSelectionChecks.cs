@@ -470,7 +470,7 @@ internal static partial class Program
     {
         string path = Path.Combine(Path.GetTempPath(), "PaneSet.Settings-" + Guid.NewGuid().ToString("N"), "settings.json");
         var open = new ShortcutBinding(3, 0x80); var restore = new ShortcutBinding(3, 0x81); var replacement = new ShortcutBinding(3, 0x82);
-        new ShortcutSettings { Shortcuts = new() { [ShortcutAction.OpenPanel] = open, [ShortcutAction.Restore] = restore } }.Save(path);
+        new ShortcutSettings { Theme = AppearanceMode.Dark, Shortcuts = new() { [ShortcutAction.OpenPanel] = open, [ShortcutAction.Restore] = restore } }.Save(path);
         var owner = new Window { Width = 300, Height = 200 }; var blocker = new Window { Width = 250, Height = 180 };
         owner.Show(); blocker.Show(); int dispatched = 0;
         var handle = new System.Windows.Interop.WindowInteropHelper(owner).Handle;
@@ -482,6 +482,7 @@ internal static partial class Program
                 Equal("", shortcuts.Change(ShortcutAction.OpenPanel, replacement));
                 Equal(replacement, shortcuts.BindingFor(ShortcutAction.OpenPanel));
                 Equal(replacement, ShortcutSettings.Load(path, out _).For(ShortcutAction.OpenPanel));
+                Equal(AppearanceMode.Dark, ShortcutSettings.Load(path, out _).Theme);
                 Equal(true, RegisterHotKey(other, 20, 0x4003, open.Key)); UnregisterHotKey(other, 20);
                 PostMessage(handle, 0x312, shortcuts.RegisteredId(ShortcutAction.OpenPanel), 0);
                 await Until(() => dispatched == 1);
@@ -493,8 +494,12 @@ internal static partial class Program
                     Equal(true, shortcuts.Change(ShortcutAction.OpenPanel, open).Contains("未保存"));
                     Equal(replacement, shortcuts.BindingFor(ShortcutAction.OpenPanel));
                     Equal(replacement, ShortcutSettings.Load(path, out _).For(ShortcutAction.OpenPanel));
+                    Equal(true, shortcuts.ChangeTheme(AppearanceMode.System).Contains("未保存"));
+                    Equal(AppearanceMode.Dark, ShortcutSettings.Load(path, out _).Theme);
                     Equal(true, RegisterHotKey(other, 22, 0x4003, open.Key)); UnregisterHotKey(other, 22);
                 }
+                Equal("", shortcuts.ChangeTheme(AppearanceMode.Light));
+                Equal(AppearanceMode.Light, ShortcutSettings.Load(path, out _).Theme);
                 Equal(true, shortcuts.Change(ShortcutAction.OpenPanel, restore).Contains("其他动作"));
                 Equal("", shortcuts.Change(ShortcutAction.OpenPanel, replacement));
                 Equal("", shortcuts.Change(ShortcutAction.SelectScreen, new(3, 0x86)));
@@ -505,6 +510,7 @@ internal static partial class Program
                 UnregisterHotKey(other, 25);
                 Equal("", shortcuts.Change(ShortcutAction.SelectScreen, defaultB));
                 Equal(defaultB, ShortcutSettings.Load(path, out _).For(ShortcutAction.SelectScreen));
+                Equal(AppearanceMode.Light, ShortcutSettings.Load(path, out _).Theme);
                 Equal("", shortcuts.Change(ShortcutAction.OpenPanel, null));
                 Equal(null, ShortcutSettings.Load(path, out _).For(ShortcutAction.OpenPanel));
                 Equal(true, RegisterHotKey(other, 23, 0x4003, replacement.Key)); UnregisterHotKey(other, 23);

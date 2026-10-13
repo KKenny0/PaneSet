@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PaneSet 界面方向比较</title>
+  <style>
+    *{box-sizing:border-box} body{margin:0;background:#e9e9e7;color:#202a32;font-family:"Segoe UI","Microsoft YaHei UI",sans-serif}
+    button{font:inherit;cursor:pointer} button:active{transform:scale(.98)} button:focus-visible{outline:2px solid #257c66;outline-offset:2px}
+    .page{max-width:1120px;margin:auto;padding:28px 24px 48px}
+    h1{font-size:25px;line-height:1.2;margin:0 0 7px;font-weight:650}
+    .intro{margin:0 0 22px;color:#52606b;font-size:14px;line-height:1.6}
+    .choices{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+    .choice{min-height:106px;text-align:left;border:1px solid #cbd2d4;border-radius:12px;background:#f7f8f6;padding:13px 15px;color:#24323d}
+    .choice[aria-selected="true"]{border:2px solid #276f62;padding:12px 14px;background:#fff}
+    .choice strong{font-size:16px;display:block;margin:0 0 5px}.choice span{font-size:12px;color:#5a6971;line-height:1.45;display:block}
+    .swatches{display:flex;gap:3px;margin-top:9px}.swatches i{width:23px;height:9px;border-radius:3px}
+    .view-head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px;gap:12px}
+    .view-head h2{font-size:15px;margin:0}.size-toggle{display:flex;gap:4px;background:#dce1e0;border-radius:8px;padding:3px}
+    .size-toggle button{border:0;background:transparent;color:#44525b;font-size:12px;border-radius:6px;padding:6px 10px}
+    .size-toggle button[aria-pressed="true"]{background:#fff;color:#1c2b33;font-weight:650}
+    .stage-wrap{overflow:auto;border:1px solid #cbd2d4;border-radius:14px;background:#d9dedf;padding:18px}
+    .app{width:860px;height:730px;overflow:hidden;border:1px solid #9caab2;border-radius:9px;box-shadow:0 12px 30px #15283a20;margin:auto;padding:20px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto auto;gap:11px;font-size:13px;line-height:1.35}
+    .app *{min-width:0}.app .top{display:flex;align-items:center;justify-content:space-between;gap:15px}
+    .brand{display:flex;align-items:center;gap:10px;white-space:nowrap}.brand img{width:34px;height:34px;object-fit:contain}
+    .brand-name{font-size:21px;font-weight:650;letter-spacing:-.02em}.brand-sub{font-size:11px}
+    .quick,.tool-actions,.bottom-actions,.footer-buttons{display:flex;align-items:center;gap:7px}
+    .ui-button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:var(--radius);padding:8px 12px;white-space:nowrap;min-height:36px}
+    .ui-button.primary{background:var(--primary);border-color:var(--primary-border);color:var(--primary-ink);font-weight:650}
+    .ui-button.ghost{background:transparent}.ui-button.disabled{opacity:.48}
+    .toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+    .search{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--muted);padding:10px 13px;min-height:39px}
+    .workspace{display:grid;grid-template-columns:minmax(0,1fr) 242px;gap:15px;min-height:0}
+    .list{background:var(--surface);border:1px solid var(--line);border-radius:var(--panel-radius);overflow:hidden;min-height:0}
+    .list-head{height:37px;display:flex;align-items:center;justify-content:space-between;padding:0 13px;font-weight:650}
+    .list-head span:last-child{font-size:11px;font-weight:400;color:var(--muted)}
+    .rows{height:calc(100% - 37px);overflow:hidden}.row{height:53px;padding:6px 12px;display:grid;grid-template-columns:28px 1fr;gap:9px;align-items:center;border-top:1px solid var(--line-soft)}
+    .row.selected{background:var(--selected)}.num{width:25px;height:25px;border:1px solid var(--line);border-radius:7px;display:grid;place-items:center;color:var(--muted);font-size:12px}
+    .row.selected .num{background:var(--num);border-color:var(--num);color:var(--num-ink);font-weight:700}
+    .app-name{font-size:11px;color:var(--muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .window-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+    .aside{background:var(--aside);border-radius:var(--panel-radius);padding:15px;overflow:hidden}
+    .aside-title{font-size:14px;font-weight:650;margin-bottom:13px}.field-label{font-size:11px;color:var(--muted);margin:10px 0 5px}
+    .select{border:1px solid var(--line);background:var(--surface);border-radius:var(--radius);padding:8px 9px;white-space:nowrap;overflow:hidden;text-overflow:clip;font-size:11px}
+    .layout-hint{font-size:10px;color:var(--muted);margin-top:8px;white-space:nowrap}.preview-label{font-weight:650;margin:14px 0 7px;font-size:12px}
+    .preview{height:120px;background:var(--preview);border-radius:var(--radius);padding:12px;display:flex;gap:2px}
+    .pane{flex:1;background:var(--pane);display:grid;place-items:center;color:var(--pane-ink);font-size:29px;font-weight:300}
+    .pane:first-child{border-radius:4px 0 0 4px}.pane:last-child{border-radius:0 4px 4px 0}
+    .summary{display:flex;justify-content:space-between;align-items:center;gap:10px;min-height:34px;font-size:11px}
+    .summary strong{font-weight:650}.summary-detail{flex:1;color:var(--muted);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+    .status{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .footer{display:flex;justify-content:space-between;align-items:center;gap:10px}.shortcut-hint{font-size:10px;color:var(--muted)}
+    .compact{width:600px;height:600px;grid-template-rows:auto auto minmax(0,1fr) auto auto auto}
+    .compact .brand-sub,.compact .preview-label,.compact .preview,.compact .layout-hint,.compact .shortcut-hint{display:none}
+    .compact .workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto;gap:8px}
+    .compact .aside{padding:9px 11px;display:grid;grid-template-columns:1fr 1fr;gap:0 9px}
+    .compact .aside-title{display:none}.compact .field-label{margin:0 0 3px}.compact .select{padding:6px 7px}
+    .compact .summary{min-height:28px}.compact .top{min-height:44px}.compact .ui-button{padding:6px 9px;min-height:34px}
+    .compact .row{height:52px}
+
+    /* A: near-white working surface, one quiet mint signal. */
+    .a{--canvas:#f8f9f7;--surface:#fff;--aside:#f7f8f7;--ink:#233039;--muted:#617079;--line:#d7dfdf;--line-soft:#e7ecea;--selected:#e6f4eb;--num:#294d51;--num-ink:#e9fff1;--primary:#25464c;--primary-border:#25464c;--primary-ink:#f7fff9;--preview:#e8eeea;--pane:#cae9d8;--pane-ink:#284f52;--radius:6px;--panel-radius:8px;background:var(--canvas);color:var(--ink)}
+    .a .top{padding:0 1px 12px;border-bottom:1px solid var(--line)}.a .brand-sub{color:var(--muted)}
+    .a .quick .ui-button:last-child{background:#e6f4eb;border-color:#c5e5d0}
+    .a .aside{border:1px solid var(--line)}.a .list{border-color:#d2dcda}.a .list-head{background:#fff}
+    .a .footer{border-top:1px solid var(--line);padding-top:10px}
+    .a.compact .top{padding-bottom:7px}.a.compact .footer{padding-top:5px}
+
+    /* B: slate-blue control rail, with the window list as a large white sheet. */
+    .b{--canvas:#e8eef1;--surface:#fff;--aside:#dbe5e9;--ink:#1f3441;--muted:#57707d;--line:#bed0d7;--line-soft:#e0e9eb;--selected:#d9eee4;--num:#345d6a;--num-ink:#f2fff9;--primary:#b6dfc9;--primary-border:#93c7ad;--primary-ink:#1b3b42;--preview:#35596a;--pane:#d1e9de;--pane-ink:#254a55;--radius:8px;--panel-radius:12px;background:var(--canvas);color:var(--ink)}
+    .b .top{background:#f8fbfa;border:1px solid var(--line);border-radius:12px;padding:10px 14px}.b .brand-sub{color:var(--muted)}
+    .b .quick .ui-button:first-child{background:#e5eff0}.b .quick .ui-button:last-child{background:#d3eede;border-color:#add6bc}
+    .b .workspace{grid-template-columns:224px minmax(0,1fr);gap:12px}.b .aside{grid-column:1;grid-row:1}.b .list{grid-column:2;grid-row:1}
+    .b .aside-title{font-size:16px}.b .footer{background:#f8fbfa;border:1px solid var(--line);border-radius:10px;padding:8px}
+    .b.compact .workspace{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) auto}.b.compact .list{grid-column:1;grid-row:1}.b.compact .aside{grid-column:1;grid-row:2}
+
+    /* C: low-light workspace, not a bright accent on a dark slab. */
+    .c{--canvas:#132332;--surface:#1b3041;--aside:#1a2d3d;--ink:#e9f1f0;--muted:#a9bac0;--line:#3a5260;--line-soft:#304655;--selected:#2b514e;--num:#a9dec1;--num-ink:#142f31;--primary:#aedfc1;--primary-border:#aedfc1;--primary-ink:#163236;--preview:#0d1c2b;--pane:#376a68;--pane-ink:#e1f7e9;--radius:5px;--panel-radius:8px;background:var(--canvas);color:var(--ink)}
+    .c .top{border-bottom:1px solid var(--line);padding:0 0 11px}.c .brand-name{font-size:19px}.c .brand-sub{color:var(--muted)}
+    .c .quick .ui-button:last-child{background:#25433e;border-color:#527b69;color:#d6f5df}.c .list-head{letter-spacing:.01em}
+    .c .row{height:49px}.c .pane{border:1px solid #719b85}.c .aside{border:1px solid var(--line)}
+    .c .footer{border-top:1px solid var(--line);padding-top:10px}.c.compact .row{height:48px}
+    .hidden{display:none}
+    .caption{font-size:12px;color:#53636c;line-height:1.55;margin:10px 0 0}
+    @media(max-width:760px){.page{padding:18px 12px}.choices{grid-template-columns:1fr}.choice{min-height:0}.stage-wrap{padding:8px}.view-head{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>PaneSet 界面方向比较</h1>
+    <p class="intro">同一组选窗内容，比较三种颜色和层级处理。点击方案与窗口尺寸切换。这里是视觉方案，当前 WPF 程序尚未更换配色。</p>
+    <div class="choices" role="tablist" aria-label="视觉方案">
+      <button class="choice" role="tab" data-variant="a" aria-selected="true"><strong>A · 雾白工作台</strong><span>浅底、细线、少量薄荷。让窗口标题先被看见。</span><span class="swatches"><i style="background:#f8f9f7"></i><i style="background:#25464c"></i><i style="background:#cae9d8"></i></span></button>
+      <button class="choice" role="tab" data-variant="b" aria-selected="false"><strong>B · 板岩蓝控制栏</strong><span>把图标的蓝灰留给控制区，列表像一张白纸。</span><span class="swatches"><i style="background:#e8eef1"></i><i style="background:#35596a"></i><i style="background:#b6dfc9"></i></span></button>
+      <button class="choice" role="tab" data-variant="c" aria-selected="false"><strong>C · 夜航工作台</strong><span>低亮度、高对比，适合长时间多屏使用。</span><span class="swatches"><i style="background:#132332"></i><i style="background:#2b514e"></i><i style="background:#aedfc1"></i></span></button>
+    </div>
+    <div class="view-head"><h2 id="current-title">A · 雾白工作台</h2><div class="size-toggle" aria-label="窗口尺寸"><button data-size="normal" aria-pressed="true">常规 860 × 730</button><button data-size="compact" aria-pressed="false">最小 600 × 600</button></div></div>
+    <div class="stage-wrap"><div id="app" class="app a">
+      <div class="top"><div class="brand"><img src="../logo-exploration/c1-refinement/small-size-review/A1-32.png" alt=""><div><div class="brand-name">PaneSet</div><div class="brand-sub">选择窗口，安排到同一屏</div></div></div><div class="quick"><button class="ui-button">A · 本屏全部</button><button class="ui-button">B · 本屏选窗</button></div></div>
+      <div class="toolbar"><div class="search">搜索应用或窗口标题 · Ctrl+F</div><div class="tool-actions"><button class="ui-button">刷新窗口</button><button class="ui-button">设置</button></div></div>
+      <div class="workspace">
+        <section class="list" aria-label="窗口列表"><div class="list-head"><span>窗口列表</span><span>按选择顺序编号</span></div><div class="rows">
+          <div class="row selected"><span class="num">1</span><div><div class="app-name">Cursor · 显示器 1（主屏）</div><div class="window-title">callback.py - Untitled (Workspace) - Cursor</div></div></div>
+          <div class="row selected"><span class="num">2</span><div><div class="app-name">ChatGPT · 显示器 1（主屏）</div><div class="window-title">ChatGPT</div></div></div>
+          <div class="row"><span class="num">·</span><div><div class="app-name">pebrel · 显示器 2</div><div class="window-title">Pebrel</div></div></div>
+          <div class="row"><span class="num">·</span><div><div class="app-name">chrome · 显示器 1（主屏）</div><div class="window-title">YouTube - Google Chrome</div></div></div>
+          <div class="row"><span class="num">·</span><div><div class="app-name">WXWork · 显示器 1（主屏）</div><div class="window-title">企业微信</div></div></div>
+          <div class="row"><span class="num">·</span><div><div class="app-name">Explorer · 显示器 2</div><div class="window-title">PaneSet 项目文件</div></div></div>
+          <div class="row"><span class="num">·</span><div><div class="app-name">Notion · 显示器 1（主屏）</div><div class="window-title">项目备忘录</div></div></div>
+        </div></section>
+        <section class="aside" aria-label="排布目标"><div class="aside-title">排布目标</div><div class="field"><div class="field-label">目标显示器</div><div class="select">显示器 1（主屏） · 2560 × 1400</div></div><div class="field"><div class="field-label">整组布局</div><div class="select">自动布局</div></div><div class="layout-hint">Alt+1 等宽 · Alt+2 主辅 · Alt+3 网格</div><div class="preview-label">布局预览</div><div class="preview"><div class="pane">1</div><div class="pane">2</div></div></section>
+      </div>
+      <div class="summary"><strong>已选 2 扇</strong><div class="summary-detail">1 · callback.py - Untitled　2 · ChatGPT</div><div class="bottom-actions"><button class="ui-button disabled">调整最近组</button><button class="ui-button">交换左右</button></div></div>
+      <div class="status">可选择各屏幕上被遮挡的窗口。收起后仍在运行，退出会清除恢复记录。</div>
+      <div><div class="footer"><div class="footer-buttons"><button class="ui-button primary">排布所选窗口</button><button class="ui-button disabled">恢复上次排布</button></div><div class="footer-buttons"><button class="ui-button ghost">收起</button><button class="ui-button ghost">退出</button></div></div><div class="shortcut-hint">Ctrl+Alt+Space 打开 / 收起 · Enter 排布 · Alt+S 轮换</div></div>
+    </div></div>
+    <p class="caption" id="caption">A 的主张：大面积保持中性，让 A1 图标、选中编号和主操作提供足够的识别度。适合最常用的选窗流程。</p>
+  </main>
+  <script>
+    const names={a:"A · 雾白工作台",b:"B · 板岩蓝控制栏",c:"C · 夜航工作台"};
+    const captions={a:"A 的主张：大面积保持中性，让 A1 图标、选中编号和主操作提供足够的识别度。适合最常用的选窗流程。",b:"B 的主张：把目标屏幕与布局放在左侧控制栏，右侧留给更大的窗口列表。蓝灰是材料色，不是大块装饰。",c:"C 的主张：整块工作区降亮度，用薄荷只提示选中和确认。适合夜间或长时间多屏使用。"};
+    const app=document.getElementById("app");
+    document.querySelectorAll("[data-variant]").forEach(button=>button.addEventListener("click",()=>{
+      const variant=button.dataset.variant; app.classList.remove("a","b","c"); app.classList.add(variant);
+      document.querySelectorAll("[data-variant]").forEach(item=>item.setAttribute("aria-selected",item===button?"true":"false"));
+      document.getElementById("current-title").textContent=names[variant]; document.getElementById("caption").textContent=captions[variant];
+    }));
+    document.querySelectorAll("[data-size]").forEach(button=>button.addEventListener("click",()=>{
+      app.classList.toggle("compact",button.dataset.size==="compact");
+      document.querySelectorAll("[data-size]").forEach(item=>item.setAttribute("aria-pressed",item===button?"true":"false"));
+    }));
+  </script>
+</body>
+</html>

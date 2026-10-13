@@ -6,6 +6,7 @@ using System.Windows.Input;
 namespace PaneSet;
 
 internal enum ShortcutAction { OpenPanel = 1, Restore = 2, ArrangeScreen = 3, SelectScreen = 4 }
+internal enum AppearanceMode { System, Light, Dark }
 internal sealed record ShortcutBinding(uint Modifiers, uint Key)
 {
     public bool Valid => Modifiers is > 0 and <= 15 && Key is > 0 and <= 255
@@ -22,6 +23,7 @@ internal sealed class ShortcutSettings
 {
     public int Version { get; set; } = 1;
     public Dictionary<ShortcutAction, ShortcutBinding?> Shortcuts { get; set; } = [];
+    public AppearanceMode Theme { get; set; } = AppearanceMode.System;
     internal static readonly JsonSerializerOptions JsonOptions = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
@@ -38,13 +40,13 @@ internal sealed class ShortcutSettings
         {
             if (!File.Exists(path)) return new();
             var settings = JsonSerializer.Deserialize<ShortcutSettings>(File.ReadAllText(path), JsonOptions);
-            if (settings == null || settings.Version != 1 || settings.Shortcuts == null
+            if (settings == null || settings.Version != 1 || settings.Shortcuts == null || !Enum.IsDefined(settings.Theme)
                 || settings.Shortcuts.Values.Any(b => b != null && !b.Valid)) throw new InvalidDataException("配置格式或版本无效");
             var bindings = Enum.GetValues<ShortcutAction>().Select(settings.For).Where(b => b != null).ToArray();
             if (bindings.Distinct().Count() != bindings.Length) throw new InvalidDataException("配置包含重复组合");
             return settings;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or InvalidDataException)
         { notice = "无法读取快捷键配置，正在使用默认值；主动保存后才覆盖原文件。" + e.Message; return new(); }
     }
     // A return value is a cleanup notice after commit; failures throw.

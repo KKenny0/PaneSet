@@ -60,7 +60,7 @@ internal sealed class PanelShortcuts : IDisposable
                 return "新组合注册失败（错误 " + Marshal.GetLastWin32Error() + "），原绑定保留。";
             registered.Add(staged);
         }
-        var next = new ShortcutSettings { Shortcuts = new(settings.Shortcuts) };
+        var next = new ShortcutSettings { Shortcuts = new(settings.Shortcuts), Theme = settings.Theme };
         next.Shortcuts[action] = binding;
         string saveNotice;
         try { saveNotice = save(next); }
@@ -76,6 +76,18 @@ internal sealed class PanelShortcuts : IDisposable
         }
         registered.Remove(old.Id);
         slots[action] = (staged, binding, ""); settings = next; Notice = saveNotice;
+        return "";
+    }
+    public string ChangeTheme(AppearanceMode mode)
+    {
+        ObjectDisposedException.ThrowIf(disposed, this);
+        if (!Enum.IsDefined(mode)) return "无效的外观选项。";
+        if (settings.Theme == mode) return "";
+        var next = new ShortcutSettings { Shortcuts = new(settings.Shortcuts), Theme = mode };
+        try { Notice = save(next); }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        { return "外观未保存：" + e.Message; }
+        settings = next;
         return "";
     }
     private string Release(int id)

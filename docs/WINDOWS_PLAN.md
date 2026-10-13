@@ -14,6 +14,7 @@ PaneSet 使用 C#、.NET 10、WPF 和 Win32。初次两窗交付之后，用户�
 | OverviewSelection | B 总览的固定候选、有序选组、身份刷新、搜索匹配、编号及布局确认资格；只接收观察数据，不调用系统接口。 |
 | QuickSelectWindow / WindowThumbnail | 本屏不透明 WPF 总览、输入与状态呈现、DWM 内容预览及裁切释放、焦点与会话生命周期；不持有 Undo。 |
 | App | 捕获启动前的前台窗口，使用会话内命名互斥量与事件保留一个进程，重复启动唤起已有面板。 |
+| ThemedChrome / UiPalette | 主面板和设置窗口共用可随应用模式变色的标题栏与控件颜色；WindowChrome 保留窗口拖动、缩放和系统菜单行为。 |
 
 原型只需要本地桌面能力，无外部服务、账号或 API 密钥，未引入额外第三方运行依赖。
 

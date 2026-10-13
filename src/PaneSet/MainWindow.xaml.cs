@@ -19,6 +19,9 @@ public partial class MainWindow : Window
     private readonly List<WindowRow> selected = [];
     private readonly ICollectionView view;
     private readonly DispatcherTimer timer;
+    private readonly DispatcherTimer themeTimer;
+    private readonly string settingsPath;
+    private AppearanceMode themeMode;
     private PanelShortcuts? shortcuts;
     private SettingsWindow? settingsWindow;
     private QuickSelectWindow? selectionWindow;
@@ -32,7 +35,12 @@ public partial class MainWindow : Window
     public MainWindow(WindowManager manager, DisplayArea display, IReadOnlyList<WindowTarget> candidates, nint foreground = 0, bool enableShortcuts = true, string? settingsPath = null)
     {
         this.manager = manager; this.display = display;
+        this.settingsPath = settingsPath ?? ShortcutSettings.DefaultPath;
+        themeMode = ShortcutSettings.Load(this.settingsPath, out _).Theme;
+        ThemeSupport.EnsureControls();
+        UiPalette.Apply(ThemeSupport.ResolveDark(themeMode));
         InitializeComponent();
+        ThemedChrome.Install(this);
         view = CollectionViewSource.GetDefaultView(rows);
         view.Filter = item => item is WindowRow row && (row.Target.Title.Contains(SearchBox.Text, StringComparison.OrdinalIgnoreCase)
             || row.Target.Application.Contains(SearchBox.Text, StringComparison.OrdinalIgnoreCase));
@@ -49,6 +57,9 @@ public partial class MainWindow : Window
                 finally { busy = false; UpdateControls(); }
             }
         }, Dispatcher);
+        themeTimer = new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background,
+            (_, _) => { if (themeMode == AppearanceMode.System) ApplyTheme(); }, Dispatcher);
+        themeTimer.Start();
         SourceInitialized += (_, _) =>
         {
             if (enableShortcuts) shortcuts = new(new WindowInteropHelper(this).Handle, (action, foreground) =>
@@ -71,7 +82,7 @@ public partial class MainWindow : Window
             { e.Cancel = true; exitRequested = false; }
         };
         SizeChanged += (_, _) => UpdateResponsiveLayout();
-        Closed += (_, _) => { closed = true; selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); manager.Dispose(); };
+        Closed += (_, _) => { closed = true; selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
         PreviewKeyDown += (_, e) =>
         {
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
@@ -86,20 +97,31 @@ public partial class MainWindow : Window
     private void UpdateResponsiveLayout()
     {
         bool compact = ActualWidth < 760;
-        BodyGrid.ColumnDefinitions[1].Width = new GridLength(compact ? 0 : 20);
-        BodyGrid.ColumnDefinitions[2].Width = new GridLength(compact ? 0 : 240);
+        BodyGrid.ColumnDefinitions[1].Width = new GridLength(compact ? 0 : 16);
+        BodyGrid.ColumnDefinitions[2].Width = new GridLength(compact ? 0 : 244);
         BodyGrid.RowDefinitions[1].Height = compact ? GridLength.Auto : new GridLength(0);
         Grid.SetColumn(SettingsPane, compact ? 0 : 2);
         Grid.SetRow(SettingsPane, compact ? 1 : 0);
         Grid.SetColumnSpan(SettingsPane, compact ? 3 : 1);
-        SettingsPane.Margin = compact ? new Thickness(0, 12, 0, 0) : new Thickness(0);
+        SettingsPane.Margin = compact ? new Thickness(0, 10, 0, 0) : new Thickness(0);
         SettingsFields.ColumnDefinitions[1].Width = compact ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
         Grid.SetRow(LayoutField, compact ? 0 : 1);
         Grid.SetColumn(LayoutField, compact ? 1 : 0);
         DisplayField.Margin = compact ? new Thickness(0, 0, 12, 0) : new Thickness(0, 0, 0, 16);
         if (compactLayout != compact) { PreviewExpander.IsExpanded = !compact; compactLayout = compact; }
         PreviewView.Height = ActualHeight < 680 ? 48 : 100;
-        StatusView.MaxHeight = 24;
+        bool shortWindow = ActualHeight < 660;
+        HeaderPanel.Padding = shortWindow && compact ? new Thickness(12, 8, 12, 8) : new Thickness(18, 14, 18, 14);
+        HeaderPanel.Margin = shortWindow && compact ? new Thickness(0, 0, 0, 9) : new Thickness(0, 0, 0, 14);
+        BrandIcon.Width = BrandIcon.Height = shortWindow && compact ? 36 : 42;
+        BrandTitle.FontSize = shortWindow && compact ? 21 : 24;
+        BrandSubtitle.Visibility = shortWindow && compact ? Visibility.Collapsed : Visibility.Visible;
+        SettingsPane.Padding = shortWindow && compact ? new Thickness(8) : new Thickness(15);
+        SettingsHeading.Visibility = shortWindow && compact ? Visibility.Collapsed : Visibility.Visible;
+        LayoutHint.Visibility = shortWindow && compact ? Visibility.Collapsed : Visibility.Visible;
+        PreviewExpander.Visibility = shortWindow && compact ? Visibility.Collapsed : Visibility.Visible;
+        ShortcutText.Visibility = shortWindow ? Visibility.Collapsed : Visibility.Visible;
+        StatusView.MaxHeight = shortWindow ? 20 : 24;
     }
 
     private bool TrySelectLayout(Key key, ModifierKeys modifiers)
@@ -230,9 +252,9 @@ public partial class MainWindow : Window
                 var cell = new Border
                 {
                     Width = rect.Width, Height = rect.Height, CornerRadius = new CornerRadius(18),
-                    Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(i < selected.Count ? "#D4E4D0" : "#F8FAF4")),
+                    Background = i < selected.Count ? UiPalette.PreviewPane : UiPalette.Panel,
                     Child = new TextBlock { Text = (i + 1).ToString(), FontSize = Math.Min(rect.Width, rect.Height) * .35,
-                        Foreground = new SolidColorBrush(Color.FromRgb(39, 102, 78)), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
+                        Foreground = UiPalette.IsDark ? UiPalette.HeaderInk : UiPalette.Primary, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center }
                 };
                 Canvas.SetLeft(cell, rect.X - display.WorkArea.X); Canvas.SetTop(cell, rect.Y - display.WorkArea.Y);
                 PreviewCanvas.Children.Add(cell);
@@ -398,10 +420,42 @@ public partial class MainWindow : Window
         else if (!report.Success) { WindowState = System.Windows.WindowState.Normal; Activate(); }
     }
     private void UpdateShortcutHint() => ShortcutText.Text = (shortcuts?.Hint ?? "快捷键未启用") + " · Enter 排布 · Alt+S 轮换";
+    private void ApplyTheme()
+    {
+        bool dark = ThemeSupport.ResolveDark(themeMode);
+        if (UiPalette.IsDark != dark)
+        {
+            UiPalette.Apply(dark);
+            UpdatePreview();
+        }
+    }
+    private string ChangeTheme(AppearanceMode mode)
+    {
+        if (!Enum.IsDefined(mode)) return "无效的外观选项。";
+        try
+        {
+            if (shortcuts != null)
+            {
+                string error = shortcuts.ChangeTheme(mode);
+                if (error.Length > 0) return error;
+            }
+            else
+            {
+                var settings = ShortcutSettings.Load(settingsPath, out _);
+                settings.Theme = mode;
+                settings.Save(settingsPath);
+            }
+        }
+        catch (Exception e) when (e is System.IO.IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        { return "外观未保存：" + e.Message; }
+        themeMode = mode;
+        ApplyTheme();
+        return "";
+    }
     private void SettingsClick(object sender, RoutedEventArgs e)
     {
         if (closed || busy || manager.HasPending || settingsWindow != null || selectionWindow != null) return;
-        settingsWindow = new SettingsWindow(this, shortcuts);
+        settingsWindow = new SettingsWindow(this, shortcuts, themeMode, ChangeTheme);
         UpdateControls();
         try { settingsWindow.ShowDialog(); }
         finally { settingsWindow = null; UpdateShortcutHint(); UpdateControls(); }

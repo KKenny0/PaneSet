@@ -305,7 +305,8 @@ internal static partial class Program
         ("recent-ui-error", CheckRecentUiError),
         ("recent-group-exit", CheckRecentExit),
         ("ui-many", CheckManyUi),
-        ("ui", CheckUi)
+        ("ui", CheckUi),
+        ("appearance", CheckAppearance)
     ];
 
     [STAThread]
@@ -422,6 +423,89 @@ internal static partial class Program
         using var longManager = new WindowManager();
         var longWindow = new MainWindow(longManager, display, longManager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray(), enableShortcuts: false) { Width = 600, Height = 600 };
         longWindow.Show(); await Task.Delay(120); Screenshot(longWindow, "paneset-long-title"); longWindow.Exit();
+    }
+
+    private static async Task CheckAppearance()
+    {
+        string path = Path.Combine(Path.GetTempPath(), "paneset-appearance-" + Guid.NewGuid().ToString("N") + ".json");
+        try
+        {
+            new ShortcutSettings { Theme = AppearanceMode.Dark }.Save(path);
+            Equal(AppearanceMode.Dark, ShortcutSettings.Load(path, out _).Theme);
+            await using var fixture = await Fixture.Start();
+            using var manager = new WindowManager();
+            var display = WindowManager.DisplayFor(fixture.Handles[0]);
+            var candidates = manager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
+            var window = new MainWindow(manager, display, candidates, fixture.Handles[0], enableShortcuts: false, settingsPath: path);
+            window.Show(); await Task.Delay(120);
+            try
+            {
+                var second = Elements<CheckBox>(window).Single(c => AutomationProperties.GetName(c) == "采购合同 · 修订稿");
+                ((IToggleProvider)new CheckBoxAutomationPeer(second).GetPattern(PatternInterface.Toggle)).Toggle();
+                Equal(true, UiPalette.IsDark);
+                Equal(UiPalette.Canvas.Color, ((SolidColorBrush)window.Background).Color);
+                var rowTitle = Elements<TextBlock>(window).Single(t => t.Text == "采购合同 · 修订稿");
+                Equal(UiPalette.Ink.Color, ((SolidColorBrush)rowTitle.Foreground).Color);
+                Screenshot(window, "paneset-appearance-dark");
+                await PreparePickerHost(window);
+                var quick = new QuickSelectWindow(window, manager, display, candidates, candidates[0].Handle, ArrangementKind.Automatic);
+                quick.Show();
+                try
+                {
+                    await Ready(quick);
+                    Screenshot(quick, "paneset-overview-dark");
+                    var card = Elements<CheckBox>(quick).First();
+                    card.Focus();
+                    await Until(() => card.IsKeyboardFocused);
+                    var cardFrame = (Border)card.Template.FindName("CardFrame", card);
+                    Equal(UiPalette.Focus.Color, ((SolidColorBrush)cardFrame.BorderBrush).Color);
+                    UiPalette.Apply(false);
+                    await Until(() => ((SolidColorBrush)cardFrame.BorderBrush).Color == UiPalette.Focus.Color);
+                    UiPalette.Apply(true);
+                    await Until(() => ((SolidColorBrush)cardFrame.BorderBrush).Color == UiPalette.Focus.Color);
+                    quick.Width = 700; quick.Height = 450; quick.UpdateLayout();
+                    var action = ButtonNamed(quick, "确认本屏选窗");
+                    var point = action.TranslatePoint(new Point(), quick);
+                    var client = ClientSize(quick);
+                    Equal(true, point.X >= 0 && point.Y >= 0 && point.X + action.ActualWidth <= client.Width && point.Y + action.ActualHeight <= client.Height);
+                }
+                finally { quick.Close(); }
+                var settings = new SettingsWindow(window, null, AppearanceMode.Dark, mode =>
+                {
+                    new ShortcutSettings { Theme = mode }.Save(path);
+                    UiPalette.Apply(ThemeSupport.ResolveDark(mode));
+                    return "";
+                });
+                settings.Show(); await Task.Delay(60);
+                try
+                {
+                    Screenshot(settings, "paneset-settings-dark");
+                    var picker = Elements<ComboBox>(settings).Single(c => AutomationProperties.GetName(c) == "外观模式");
+                    picker.SelectedIndex = 1;
+                    Equal(AppearanceMode.Light, ShortcutSettings.Load(path, out _).Theme);
+                    Equal(false, UiPalette.IsDark);
+                    Screenshot(settings, "paneset-settings-light");
+                }
+                finally { settings.Close(); }
+                await Task.Delay(60);
+                Equal(UiPalette.Canvas.Color, ((SolidColorBrush)window.Background).Color);
+                Equal(UiPalette.Ink.Color, ((SolidColorBrush)rowTitle.Foreground).Color);
+                Screenshot(window, "paneset-appearance-light");
+                Invoke(ButtonNamed(window, "最小化"));
+                await Until(() => window.WindowState == WindowState.Minimized);
+                window.WindowState = WindowState.Normal;
+                Invoke(ButtonNamed(window, "最大化或还原"));
+                await Until(() => window.WindowState == WindowState.Maximized);
+                Invoke(ButtonNamed(window, "最大化或还原"));
+                await Until(() => window.WindowState == WindowState.Normal);
+            }
+            finally { window.Exit(); }
+            Equal(AppearanceMode.Light, ShortcutSettings.Load(path, out _).Theme);
+            File.WriteAllText(path, "{\"version\":1,\"shortcuts\":{},\"theme\":99}");
+            Equal(AppearanceMode.System, ShortcutSettings.Load(path, out string warning).Theme);
+            Equal(true, warning.Length > 0);
+        }
+        finally { if (File.Exists(path)) File.Delete(path); }
     }
 
     private sealed class Fixture : IAsyncDisposable

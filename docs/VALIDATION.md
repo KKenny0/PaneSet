@@ -1,5 +1,11 @@
 # Windows 多窗原型验收
 
+## A/C 外观审查修复（2026-10-13）
+
+暗色主面板窗口标题现在明确使用 `Ink`，避免复用控件默认黑字；快速选窗卡片的悬停、键盘焦点描边改用动态资源，运行中切换调色板会立即更新。`appearance` 检查两种标题颜色、卡片焦点描边的明暗往返、设置保存及主窗口最小化、最大化与还原。暗色总览截图等到 `IsReady` 后生成，不再把初始化瞬间当作稳定界面。
+
+本机 Windows 10 Build 19045 对 `DwmSetWindowAttribute` 属性 20 返回成功，但在系统亮色时对测试窗口设置暗色后，标题栏仍显示白色。主面板和设置改用 WPF `WindowChrome` 绘制应用主题标题栏，保留拖动、缩放和系统按钮。独立输出目录的 Release 构建为 0 警告、0 错误；定向 `appearance`、`ui`、`settings-ui`、`overview-size-ui`、`quick-flow` 已通过。完整检查为 **61 PASS / 1 FAIL / 3 unavailable**；唯一失败仍是 `overview` 在 700 × 450 时的确认按钮边界断言，定向 `overview-size-ui` 通过。3 项 unavailable 仍因现有用户 PaneSet 实例或全局键占用。此结果不构成全量通过。系统主题真实切换、标题栏鼠标拖动及 Windows 11 实机仍待验收。
+
 ## 配置替换：第 5 阶段修复及最终回归（2026-10-12）
 
 基线 `7032654`。生产 Save 以唯一未使用的同目录备份名调用 File.Replace，临时 JSON 仍先 Flush(true)；1177 尝试一次无覆盖恢复旧备份，恢复失败则保留旧字节并报路径。提交后清理异常作为成功提示返回，Change 发布新绑定；失败时保留旧绑定并释放暂存注册。恢复与临时清理同时失败保留原 HRESULT、恢复路径和各层异常。
@@ -301,7 +307,9 @@ Windows 10 Pro 22H2、Build 19045、x64，交互会话 1。局部 .NET SDK 10.0.
 - [三窗主辅](../artifacts/paneset-three-main.png)、[八窗网格](../artifacts/paneset-grid.png)、[网格最小尺寸](../artifacts/paneset-grid-minimum.png)、[快捷说明最小尺寸](../artifacts/paneset-shortcuts-minimum.png)。
 - [分栏前](../artifacts/paneset-breakpoint-759.png)、[分栏后](../artifacts/paneset-breakpoint-760.png)、[最近组](../artifacts/paneset-recent.png)、[最近组最小尺寸](../artifacts/paneset-recent-minimum.png)、[缺失成员](../artifacts/paneset-recent-missing.png)。
 
-视觉采用浅色背景、墨绿色选择和主要按钮，Segoe UI 与微软雅黑回退，没有高频操作动画。
+外观现支持 A 亮色与 C 暗色，默认跟随 Windows 应用模式，设置中可手动覆盖。主题值与快捷键保存在同一配置中；切换时更新主面板、设置和本屏总览的颜色。受控 WPF 检查保存了[亮色主面板](../artifacts/paneset-appearance-light.png)、[暗色主面板](../artifacts/paneset-appearance-dark.png)、[暗色设置](../artifacts/paneset-settings-dark.png)及[暗色本屏总览](../artifacts/paneset-overview-dark.png)。`appearance` 覆盖主题读取、界面切换和保存，`shortcut-settings` 覆盖快捷键修改与主题值互不覆盖；真实 Windows 亮暗切换仍需人工操作确认。Segoe UI 与微软雅黑回退保留，没有高频操作动画。
+
+本次全量检查用时 99.6 秒，结果为 59 通过、3 失败、3 跳过。`overview` 在一次 700 × 450 的按钮边界断言失败，单独运行时又因 Chrome 抢到前台而中断；`quick-entry` 与 `quick-activation-failure` 也未在等待期得到预期前台。现有 PaneSet 占用实例及全局键，相关 3 项跳过。定向 `appearance`、`shortcut-settings`、`overview-size-ui` 分别通过，其中 `appearance` 还独立检查 700 × 450 的主要按钮边界。这些结果不足以把全量检查标记为通过。
 
 ## 审查及剩余边界
 

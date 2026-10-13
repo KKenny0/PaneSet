@@ -9,4 +9,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\PaneSet.ico</ApplicationIcon>
   </PropertyGroup>
+  <ItemGroup>
+    <Resource Include="Assets\PaneSet.ico" />
+    <Resource Include="Assets\Brand.png" />
+  </ItemGroup>
 </Project>

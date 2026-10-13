@@ -27,14 +27,17 @@ internal sealed class QuickSelectWindow : Window
         public WindowThumbnail? Thumbnail;
     }
     private readonly Dictionary<OverviewSelection.Item, Card> controls = [];
+    private readonly Style cardStyle;
     private readonly WrapPanel candidates = new();
     private readonly StackPanel selection = new();
     private readonly Dictionary<OverviewSelection.Item, (TextBlock Title, Button Up, Button Down)> selectedControls = [];
     private readonly ScrollViewer candidateScroll, selectedScroll;
     private readonly Canvas preview = new() { Height = 120, IsHitTestVisible = false, ClipToBounds = true };
-    private readonly TextBox search = new() { MinHeight = 36, Padding = new Thickness(8), Margin = new Thickness(0, 8, 0, 12) };
-    private readonly TextBlock summary = new(), status = new() { TextWrapping = TextWrapping.Wrap }, empty = new() { Text = "没有匹配的窗口。可尝试应用名或另一段标题。", Margin = new Thickness(8) };
-    private readonly ComboBox layout = new() { MinHeight = 36, Margin = new Thickness(0, 8, 0, 8) };
+    private readonly TextBox search = new() { MinHeight = 40, Padding = new Thickness(10, 8, 10, 8), Margin = new Thickness(0, 9, 0, 0),
+        Background = UiPalette.Surface, Foreground = UiPalette.Ink, BorderBrush = UiPalette.Line };
+    private readonly TextBlock summary = new(), status = new() { TextWrapping = TextWrapping.Wrap }, empty = new() { Text = "没有匹配的窗口。可尝试应用名或另一段标题。", Margin = new Thickness(8), Foreground = UiPalette.Muted };
+    private readonly ComboBox layout = new() { MinHeight = 36, Margin = new Thickness(0, 8, 0, 8),
+        Background = UiPalette.Surface, Foreground = UiPalette.Ink, BorderBrush = UiPalette.Line };
     private readonly Button apply;
     private readonly DispatcherTimer refresh;
     private bool finished, updating, thumbnailUpdate;
@@ -51,41 +54,44 @@ internal sealed class QuickSelectWindow : Window
             foreground, display.WorkArea);
         Title = "PaneSet · 本屏窗口总览"; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
         ShowInTaskbar = false; Topmost = true; WindowStartupLocation = WindowStartupLocation.Manual;
-        Background = new SolidColorBrush(Color.FromRgb(244, 245, 241)); FontFamily = reference.FontFamily; FontSize = 14;
+        Background = UiPalette.Canvas; Foreground = UiPalette.Ink; FontFamily = reference.FontFamily; FontSize = 14;
+        cardStyle = (Style)reference.FindResource("QuickCardStyle");
         Resources[typeof(Button)] = reference.FindResource(typeof(Button));
-        Resources[typeof(CheckBox)] = reference.FindResource(typeof(CheckBox));
-        var root = new Grid { Margin = new Thickness(24) }; Content = root;
+        var root = new Grid { Margin = new Thickness(18) }; Content = root;
         root.RowDefinitions.Add(new() { Height = GridLength.Auto }); root.RowDefinitions.Add(new());
         var heading = new StackPanel();
-        heading.Children.Add(new TextBlock { Text = "选择要一起看的窗口", FontSize = 25, FontWeight = FontWeights.SemiBold });
-        heading.Children.Add(new TextBlock { Text = "被遮挡的窗口也在这里。编号对应排布顺序。", Margin = new Thickness(0, 6, 0, 0) });
+        heading.Children.Add(new TextBlock { Text = "选择要一起看的窗口", FontSize = 23, FontWeight = FontWeights.SemiBold, Foreground = UiPalette.HeaderInk });
+        heading.Children.Add(new TextBlock { Text = "被遮挡的窗口也在这里。编号对应排布顺序。", Margin = new Thickness(0, 5, 0, 0), Foreground = UiPalette.HeaderSub });
         AutomationProperties.SetName(search, "搜索本屏窗口"); search.ToolTip = "搜索应用名或窗口标题 · Ctrl+F";
         search.SetValue(AutomationProperties.HelpTextProperty, "按应用名或窗口标题搜索；筛选不取消已选窗口。");
         var searchRow = new DockPanel();
-        searchRow.Children.Add(new TextBlock { Text = "搜索", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 4) });
-        searchRow.Children.Add(search); heading.Children.Add(searchRow); root.Children.Add(heading);
+        searchRow.Children.Add(new TextBlock { Text = "搜索", Foreground = UiPalette.HeaderInk, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 9, 10, 0) });
+        searchRow.Children.Add(search); heading.Children.Add(searchRow);
+        root.Children.Add(new Border { Child = heading, Background = UiPalette.Header, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(0, 0, 0, 1), CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 14), Margin = new Thickness(0, 0, 0, 12) });
         var body = new Grid(); Grid.SetRow(body, 1); root.Children.Add(body);
         body.ColumnDefinitions.Add(new()); body.ColumnDefinitions.Add(new() { Width = new GridLength(300) });
-        var candidateArea = new Grid { Margin = new Thickness(0, 0, 20, 0) }; body.Children.Add(candidateArea);
+        var candidateArea = new Grid { Margin = new Thickness(0, 0, 14, 0) }; body.Children.Add(candidateArea);
         candidateScroll = new ScrollViewer { Content = candidates, VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, CanContentScroll = false };
-        candidateArea.Children.Add(candidateScroll); candidateArea.Children.Add(empty);
-        var side = new Grid { Background = new SolidColorBrush(Color.FromRgb(233, 238, 230)), Margin = new Thickness(0) };
-        Grid.SetColumn(side, 1); body.Children.Add(side);
+        candidateArea.Children.Add(new Border { Child = candidateScroll, Background = UiPalette.Surface, BorderBrush = UiPalette.Line,
+            BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(12), Padding = new Thickness(5) }); candidateArea.Children.Add(empty);
+        var side = new Grid { Background = UiPalette.Slate };
+        var sideFrame = new Border { Child = side, Background = UiPalette.Slate, CornerRadius = new CornerRadius(12), ClipToBounds = true };
+        Grid.SetColumn(sideFrame, 1); body.Children.Add(sideFrame);
         side.RowDefinitions.Add(new() { Height = GridLength.Auto }); side.RowDefinitions.Add(new()); side.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        summary.FontSize = 18; summary.Margin = new Thickness(10); side.Children.Add(summary);
+        summary.FontSize = 17; summary.FontWeight = FontWeights.SemiBold; summary.Foreground = UiPalette.Ink; summary.Margin = new Thickness(14, 12, 10, 10); side.Children.Add(summary);
         selectedScroll = new ScrollViewer { Content = selection, Margin = new Thickness(12, 0, 12, 0), VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }; Grid.SetRow(selectedScroll, 1); side.Children.Add(selectedScroll);
         var actions = new StackPanel { Margin = new Thickness(14) }; Grid.SetRow(actions, 2); side.Children.Add(actions);
-        actions.Children.Add(new TextBlock { Text = "排布方式" });
+        actions.Children.Add(new TextBlock { Text = "排布方式", Foreground = UiPalette.Ink, FontWeight = FontWeights.SemiBold });
         layout.ItemsSource = Enum.GetValues<ArrangementKind>(); layout.SelectedItem = initialKind;
         var label = new FrameworkElementFactory(typeof(TextBlock)); label.SetBinding(TextBlock.TextProperty, new Binding { Converter = new LayoutLabelConverter() });
         layout.ItemTemplate = new DataTemplate { VisualTree = label };
         AutomationProperties.SetName(layout, "快速选窗布局"); actions.Children.Add(layout); actions.Children.Add(preview);
         var buttons = new WrapPanel { Margin = new Thickness(0, 8, 0, 8) };
-        apply = MakeButton("排布 · Enter", "确认本屏选窗", (_, _) => Submit()); buttons.Children.Add(apply);
+        apply = MakeButton("排布 · Enter", "确认本屏选窗", (_, _) => Submit()); apply.Background = UiPalette.Primary; apply.Foreground = UiPalette.PrimaryInk; apply.BorderBrush = UiPalette.Primary; apply.FontWeight = FontWeights.SemiBold; buttons.Children.Add(apply);
         buttons.Children.Add(MakeButton("取消 · Esc", "取消本屏选窗", (_, _) => Finish(false, "已取消，已有布局与恢复记录保留。")));
-        actions.Children.Add(buttons); status.FontSize = 12; actions.Children.Add(status);
+        actions.Children.Add(buttons); status.FontSize = 12; status.Foreground = UiPalette.Muted; actions.Children.Add(status);
         foreach (var row in rows) AddRow(row);
         refresh = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, (_, _) => RefreshCandidates(), Dispatcher);
         SourceInitialized += (_, _) =>
@@ -165,18 +171,19 @@ internal sealed class QuickSelectWindow : Window
     }
     private void AddRow(OverviewSelection.Item row)
     {
-        var checkbox = new CheckBox { DataContext = row, Width = 280, Height = 270, Margin = new Thickness(5), Padding = new Thickness(8),
-            HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch, Background = Brushes.White };
+        var checkbox = new CheckBox { DataContext = row, Style = cardStyle, Width = 280, Height = 270, Margin = new Thickness(5), Padding = new Thickness(8),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
+            Background = UiPalette.Surface, Foreground = UiPalette.Ink, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(1) };
         checkbox.IsChecked = row.Selected;
         checkbox.Checked += (_, _) => Choose(row, true);
         checkbox.Unchecked += (_, _) => Choose(row, false);
         var content = new Grid(); content.RowDefinitions.Add(new() { Height = new GridLength(150) }); content.RowDefinitions.Add(new()); content.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        var fallback = new TextBlock { Text = "内容预览不可用\n仍可按标题选择", TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-        var slot = new Border { Background = new SolidColorBrush(Color.FromRgb(230, 235, 228)), Child = fallback, IsHitTestVisible = false };
+        var fallback = new TextBlock { Text = "内容预览不可用\n仍可按标题选择", TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap, Foreground = UiPalette.Muted };
+        var slot = new Border { Background = UiPalette.Slate, CornerRadius = new CornerRadius(7), Child = fallback, IsHitTestVisible = false };
         content.Children.Add(slot);
-        var title = new TextBlock { TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 8, 0, 4) };
+        var title = new TextBlock { TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 8, 0, 4), Foreground = UiPalette.Ink };
         title.Text = row.Target.Title; Grid.SetRow(title, 1); content.Children.Add(title);
-        var note = new TextBlock { FontSize = 12, Foreground = Brushes.DarkSlateGray, TextWrapping = TextWrapping.Wrap };
+        var note = new TextBlock { FontSize = 12, Foreground = UiPalette.Muted, TextWrapping = TextWrapping.Wrap };
         Grid.SetRow(note, 2); content.Children.Add(note);
         checkbox.Content = content; candidates.Children.Add(checkbox); controls[row] = new Card { Check = checkbox, Slot = slot, Title = title, Note = note, Fallback = fallback };
     }
@@ -231,7 +238,8 @@ internal sealed class QuickSelectWindow : Window
                     AutomationProperties.SetName(control.Check, row.Target.Title); control.Check.ToolTip = row.Target.Title;
                     control.Check.IsEnabled = row.IsValid || row.Selected;
                     control.Note.Text = (row.Selected ? row.Order + " · " : "") + row.Target.Application + (!row.IsValid ? " · 已失效" : "");
-                    control.Check.Background = row.Selected ? new SolidColorBrush(Color.FromRgb(212, 228, 208)) : Brushes.White;
+                    control.Check.Background = row.Selected ? UiPalette.MintPale : UiPalette.Surface;
+                    control.Check.BorderBrush = row.Selected ? UiPalette.Focus : UiPalette.Line;
                     if (!row.IsValid) { control.Thumbnail?.Dispose(); control.Thumbnail = null; control.Fallback.Text = "窗口已失效"; }
                     else
                     {
@@ -254,7 +262,7 @@ internal sealed class QuickSelectWindow : Window
         {
             if (!selectedControls.ContainsKey(row))
             {
-                var title = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 6) };
+                var title = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = UiPalette.Ink, Margin = new Thickness(0, 4, 0, 6) };
                 var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10), Tag = row }; panel.Children.Add(title);
                 var actions = new WrapPanel(); panel.Children.Add(actions);
                 var up = MakeButton("前移", "前移 · " + row.Target.Title, (_, _) => Move(row, -1)); actions.Children.Add(up);
@@ -317,8 +325,9 @@ internal sealed class QuickSelectWindow : Window
         {
             var rect = result.Areas[i];
             var cell = new Border { Width = rect.Width * factor, Height = rect.Height * factor,
-                Background = new SolidColorBrush(Color.FromRgb(185, 208, 174)), BorderBrush = Brushes.SeaGreen, BorderThickness = new Thickness(1),
-                Child = new TextBlock { Text = (i + 1).ToString(), HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
+                Background = UiPalette.PreviewPane, BorderBrush = UiPalette.Focus, BorderThickness = new Thickness(1),
+                Child = new TextBlock { Text = (i + 1).ToString(), Foreground = UiPalette.IsDark ? UiPalette.HeaderInk : UiPalette.Primary,
+                    HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center } };
             Canvas.SetLeft(cell, (rect.X - display.WorkArea.X) * factor); Canvas.SetTop(cell, (rect.Y - display.WorkArea.Y) * factor); preview.Children.Add(cell);
         }
         apply.IsEnabled = IsReady && result.CanConfirm;

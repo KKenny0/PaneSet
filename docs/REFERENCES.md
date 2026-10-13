@@ -35,6 +35,8 @@ Loop 最初的评估针对上表中的固定提交，并对照了[正式版 1.4.
 | [EnumWindows](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-enumwindows) | 枚举桌面应用的顶层窗口，不能独自判断完整的产品选择范围。 |
 | [IVirtualDesktopManager](https://learn.microsoft.com/en-us/windows/win32/api/shobjidl_core/nn-shobjidl_core-ivirtualdesktopmanager) | 判断窗口是否属于当前虚拟桌面。 |
 | [DWMWINDOWATTRIBUTE](https://learn.microsoft.com/en-us/windows/win32/api/dwmapi/ne-dwmapi-dwmwindowattribute) | 系统隐藏状态及可见窗口边框等信息。 |
+| [Windows 常用设置](https://learn.microsoft.com/en-us/windows/apps/develop/settings/settings-common) | `AppsUseLightTheme` 表示应用的亮暗模式，与 `SystemUsesLightTheme` 表示的 Windows 界面模式分开；PaneSet 跟随前者。 |
+| [WindowChrome](https://learn.microsoft.com/en-us/dotnet/api/system.windows.shell.windowchrome) | 允许 WPF 自绘标题栏，同时保留拖动、缩放及系统菜单等窗口行为；主面板和设置窗口用它保证标题栏跟随应用外观。 |
 | [SetWindowPos](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos) | 调整位置和大小、避免激活或改变层级、读取调用失败。 |
 | [GetWindowPlacement](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getwindowplacement) | 获取正常、最小化和最大化的位置及显示状态，为恢复提供快照。 |
 | [SetWinEventHook](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwineventhook) | 在有消息循环的线程监测窗口关闭，回调需要保持有效，事件有异步交付的边界。 |
