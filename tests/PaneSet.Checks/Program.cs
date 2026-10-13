@@ -267,6 +267,7 @@ internal static partial class Program
         ("selection-order", CheckSelectionOrder),
         ("overview-size", CheckOverviewSize),
         ("overview-size-ui", CheckOverviewSizeUi),
+        ("overview-viewport", CheckOverviewViewport),
         ("overview", CheckOverview),
         ("thumbnail", CheckThumbnail),
         ("mouse-routing", CheckMouseRouting),

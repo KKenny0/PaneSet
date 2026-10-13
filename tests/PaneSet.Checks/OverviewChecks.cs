@@ -192,6 +192,7 @@ internal static partial class Program
             {
                 picker.Width = size.Item1; picker.Height = size.Item2; await Task.Delay(250); picker.UpdateLayout();
                 var button = ButtonNamed(picker, "确认本屏选窗"); var p = button.TranslatePoint(new Point(), picker);
+                Console.WriteLine($"OVERVIEW sizeDIP={size}, dpi={VisualTreeHelper.GetDpi(picker).PixelsPerInchX}, outer={Native.Bounds(new WindowInteropHelper(picker).Handle)}, clientDIP={ClientSize(picker)}, actionDIP={p}, actionSizeDIP={button.ActualWidth},{button.ActualHeight}");
                 Equal(true, p.Y >= 0 && p.Y + button.ActualHeight <= ClientSize(picker).Height);
                 Equal(true, p.X >= 0 && p.X + button.ActualWidth <= ClientSize(picker).Width);
                 var selectedScroll = Elements<ScrollViewer>(picker).Single(s => s.Content is StackPanel);

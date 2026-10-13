@@ -16,6 +16,42 @@ internal static partial class Program
         return $"hwnd={handle}, loaded={window.IsLoaded}, visible={window.IsVisible}, state={window.WindowState}, wpfTopmost={window.Topmost}, nativeTopmost={(Native.GetWindowLong(handle, -20).ToInt64() & 8) != 0}, bounds={bounds.Value}, foreground={foreground}, foregroundClass={Native.Text(foreground, true)}, focus={Keyboard.FocusedElement?.GetType().Name}, modifiers={Keyboard.Modifiers}";
     }
 
+    private static async Task SendLocalLayoutKeys(MainWindow window, UIElement target, params byte[] keys)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        var source = HwndSource.FromHwnd(handle) ?? throw new Exception("No local input message source.");
+        var observedKeys = new[] { 1, 2, 0x10, 0x11, 0x12, 0x5B, 0x5C }.Concat(keys.Select(k => (int)k)).Distinct().ToArray();
+        var events = new List<string>();
+        nint Observe(nint hwnd, int message, nint wParam, nint lParam, ref bool handled)
+        {
+            if (events.Count < 32 && message is 0x6 or 0x7 or 0x8 or 0x100 or 0x101 or 0x102 or 0x104 or 0x105)
+                events.Add($"{message:X}:{wParam}");
+            return 0;
+        }
+        string State()
+        {
+            var search = (TextBox)window.FindName("SearchBox");
+            var foreground = GetForegroundWindow(); Native.GetWindowThreadProcessId(foreground, out uint pid);
+            var pressed = observedKeys.Where(k => (GetAsyncKeyState(k) & 0x8000) != 0);
+            return $"{WindowEvidence(window)}, foregroundPid={pid}, text={search.Text}, selection={search.SelectionStart},{search.SelectionLength}, pressed={string.Join(',', pressed.Select(k => k.ToString("X")))}";
+        }
+        source.AddHook(Observe);
+        try
+        {
+            Console.WriteLine($"LOCAL INPUT before keys={string.Join(',', keys.Select(k => k.ToString("X")))} {State()}");
+            if (!window.IsVisible || window.WindowState != WindowState.Normal || GetForegroundWindow() != handle || Keyboard.FocusedElement != target)
+                throw new Exception("Local layout target is not the focused foreground window; injection refused.");
+            if (observedKeys.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0))
+                throw new Exception("Local layout precondition: an input key/button is already pressed; injection refused.");
+            await SendKeys(keys);
+        }
+        finally
+        {
+            source.RemoveHook(Observe);
+            Console.WriteLine($"LOCAL INPUT after {State()} events={string.Join('|', events)}");
+        }
+    }
+
     private static async Task SelectColumnsByInput(QuickSelectWindow picker)
     {
         var events = new List<string>();

@@ -67,7 +67,8 @@ internal sealed class QuickSelectWindow : Window
         var searchRow = new DockPanel();
         searchRow.Children.Add(new TextBlock { Text = "搜索", Foreground = UiPalette.HeaderInk, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 9, 10, 0) });
         searchRow.Children.Add(search); heading.Children.Add(searchRow);
-        root.Children.Add(new Border { Child = heading, Background = UiPalette.Header, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(0, 0, 0, 1), CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 14), Margin = new Thickness(0, 0, 0, 12) });
+        var header = new Border { Child = heading, Background = UiPalette.Header, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(0, 0, 0, 1), CornerRadius = new CornerRadius(8), Padding = new Thickness(16, 12, 16, 14), Margin = new Thickness(0, 0, 0, 12) };
+        root.Children.Add(header);
         var body = new Grid(); Grid.SetRow(body, 1); root.Children.Add(body);
         body.ColumnDefinitions.Add(new()); body.ColumnDefinitions.Add(new() { Width = new GridLength(300) });
         var candidateArea = new Grid { Margin = new Thickness(0, 0, 14, 0) }; body.Children.Add(candidateArea);
@@ -104,6 +105,9 @@ internal sealed class QuickSelectWindow : Window
         };
         SizeChanged += (_, _) =>
         {
+            bool compact = ActualHeight < 600;
+            header.Padding = compact ? new Thickness(16, 6, 16, 6) : new Thickness(16, 12, 16, 14);
+            header.Margin = new Thickness(0, 0, 0, compact ? 8 : 12);
             body.ColumnDefinitions[1].Width = new GridLength(ActualWidth < 850 ? 260 : 300);
             preview.Height = ActualHeight < 650 ? 60 : 120;
             preview.Visibility = ActualHeight < 600 ? Visibility.Collapsed : Visibility.Visible;

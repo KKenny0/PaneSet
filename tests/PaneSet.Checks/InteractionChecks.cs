@@ -363,6 +363,7 @@ internal static partial class Program
             .Concat(down.Reverse().Select(key => new KeyInput { Type = 1, Key = key, Flags = 2 })).ToArray();
         uint inserted = SendInput((uint)input.Length, input, Marshal.SizeOf<KeyInput>());
         int error = Marshal.GetLastWin32Error();
+        Console.WriteLine($"KEY INPUT requested={input.Length}, inserted={inserted}, error={error}");
         if (inserted == 0 && error == 5) throw new UnavailableException("Windows denied local key injection (SendInput, error 5).");
         if (inserted != input.Length)
         {
@@ -394,10 +395,10 @@ internal static partial class Program
                 await Until(() => GetForegroundWindow() == new WindowInteropHelper(window).Handle);
                 UIElement inputTarget = kind == ArrangementKind.MainAndOthers ? picker : search;
                 inputTarget.Focus(); await Until(() => Keyboard.FocusedElement == inputTarget);
-                await SendKeys(0x12, key);
+                await SendLocalLayoutKeys(window, inputTarget, 0x12, key);
                 await Until(() => Equals(((ComboBoxItem)picker.SelectedItem).Tag, kind));
                 foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
-                await SendKeys(0x0D);
+                await SendLocalLayoutKeys(window, inputTarget, 0x0D);
                 await Until(() => window.WindowState == System.Windows.WindowState.Minimized && !manager.HasPending);
                 var expected = LayoutEngine.Arrange(display.WorkArea, 3, kind);
                 for (int i = 0; i < 3; i++) Equal(expected[i], manager.ReadState(candidates[i]).Bounds);
@@ -408,9 +409,13 @@ internal static partial class Program
             window.Activate(); SetForegroundWindow(new WindowInteropHelper(window).Handle);
             await Until(() => GetForegroundWindow() == new WindowInteropHelper(window).Handle);
             search.Focus(); await Until(() => Keyboard.FocusedElement == search);
-            await SendKeys(0x31); await Until(() => search.Text == "1");
+            await SendLocalLayoutKeys(window, search, 0x31); await Until(() => search.Text == "1");
             Equal(ArrangementKind.Grid, (ArrangementKind)((ComboBoxItem)picker.SelectedItem).Tag);
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
+        }
+        catch (Exception e)
+        {
+            throw new Exception($"Local layout input failed: {WindowEvidence(window)}; search={((TextBox)window.FindName("SearchBox")).Text}", e);
         }
         finally { window.Exit(); }
     }
