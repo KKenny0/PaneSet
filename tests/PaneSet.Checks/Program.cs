@@ -321,12 +321,22 @@ internal static partial class Program
         {
             var cases = args.Length == 2 && args[0] == "--case" ? Cases.Where(c => c.Name == args[1]) : Cases;
             if (!cases.Any()) { Console.Error.WriteLine("Unknown check case."); exit = 1; }
-            int passed = 0, failed = 0, unavailable = 0;
+            int passed = 0, failed = 0, unavailable = 0, executed = 0;
             foreach (var test in cases)
             {
+                executed++;
                 try { await test.Run(); passed++; Console.WriteLine("PASS " + test.Name); }
                 catch (UnavailableException e) { unavailable++; Console.WriteLine("SKIP " + test.Name + ": " + e.Message); }
-                catch (Exception e) { failed++; Console.Error.WriteLine("FAIL " + test.Name + ": " + e); exit = 1; }
+                catch (Exception e)
+                {
+                    failed++; Console.Error.WriteLine("FAIL " + test.Name + ": " + e); exit = 1;
+                    // shortcut: guards use existing error text; introduce a typed failure if those messages change.
+                    if (Environment.GetEnvironmentVariable("PANESET_CHECKS_STOP_ON_INPUT_GUARD") == "1" && e.ToString().Contains("injection refused"))
+                    {
+                        Console.WriteLine($"ABORT input protection; unrun={cases.Count() - executed}");
+                        break;
+                    }
+                }
             }
             Console.WriteLine($"RESULT passed={passed}, failed={failed}, unavailable={unavailable}");
             app.Shutdown(exit);

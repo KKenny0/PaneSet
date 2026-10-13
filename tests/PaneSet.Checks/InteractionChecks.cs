@@ -363,7 +363,7 @@ internal static partial class Program
             .Concat(down.Reverse().Select(key => new KeyInput { Type = 1, Key = key, Flags = 2 })).ToArray();
         uint inserted = SendInput((uint)input.Length, input, Marshal.SizeOf<KeyInput>());
         int error = Marshal.GetLastWin32Error();
-        Console.WriteLine($"KEY INPUT requested={input.Length}, inserted={inserted}, error={error}");
+        Console.WriteLine($"KEY INPUT requested={input.Length}, inserted={inserted}, error={(inserted == input.Length ? 0 : error)}");
         if (inserted == 0 && error == 5) throw new UnavailableException("Windows denied local key injection (SendInput, error 5).");
         if (inserted != input.Length)
         {

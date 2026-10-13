@@ -72,7 +72,8 @@ internal static partial class Program
     [System.Runtime.InteropServices.DllImport("user32.dll")] private static extern nint WindowFromPoint(Native.Point point);
     private static async Task ClickOwned(Window window, FrameworkElement control)
     {
-        await Until(() => control.ActualWidth > 0 && control.ActualHeight > 0 && control.IsVisible);
+        window.UpdateLayout();
+        await Until(() => control.IsMeasureValid && control.IsArrangeValid && control.ActualWidth > 0 && control.ActualHeight > 0 && control.IsVisible);
         var point = control.PointToScreen(new Point(control.ActualWidth / 2, control.ActualHeight / 2));
         var native = new Native.Point { X = (int)point.X, Y = (int)point.Y };
         await ClickNativeOwned(new System.Windows.Interop.WindowInteropHelper(window).Handle, native);
