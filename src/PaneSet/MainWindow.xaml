@@ -131,7 +131,7 @@
           </StackPanel>
         </Grid>
         <TextBlock x:Name="LayoutHint" Text="Alt+1 等宽 · Alt+2 主辅 · Alt+3 网格" FontSize="11" Foreground="{DynamicResource Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
-        <Expander x:Name="PreviewExpander" Header="布局预览" IsExpanded="True" Margin="0,12,0,0">
+        <Expander x:Name="PreviewExpander" Header="布局预览" Foreground="{DynamicResource Ink}" IsExpanded="True" Margin="0,12,0,0">
           <Border Background="{DynamicResource Preview}" CornerRadius="8" Padding="10" Margin="0,8,0,0">
             <Viewbox x:Name="PreviewView" Height="100" Stretch="Uniform"><Canvas x:Name="PreviewCanvas"/></Viewbox>
           </Border>

@@ -449,6 +449,13 @@ internal static partial class Program
             var candidates = manager.ListWindows(display).Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
             var window = new MainWindow(manager, display, candidates, fixture.Handles[0], enableShortcuts: false, settingsPath: path);
             window.Show(); await Task.Delay(120);
+            void CheckPreviewHeading()
+            {
+                window.UpdateLayout();
+                var preview = (Expander)window.FindName("PreviewExpander");
+                var heading = Elements<TextBlock>(preview).Single(t => t.Text == "布局预览");
+                Equal(UiPalette.Ink.Color, ((SolidColorBrush)heading.Foreground).Color);
+            }
             try
             {
                 var second = Elements<CheckBox>(window).Single(c => AutomationProperties.GetName(c) == "采购合同 · 修订稿");
@@ -457,6 +464,7 @@ internal static partial class Program
                 Equal(UiPalette.Canvas.Color, ((SolidColorBrush)window.Background).Color);
                 var rowTitle = Elements<TextBlock>(window).Single(t => t.Text == "采购合同 · 修订稿");
                 Equal(UiPalette.Ink.Color, ((SolidColorBrush)rowTitle.Foreground).Color);
+                CheckPreviewHeading();
                 Screenshot(window, "paneset-appearance-dark");
                 await PreparePickerHost(window);
                 var quick = new QuickSelectWindow(window, manager, display, candidates, candidates[0].Handle, ArrangementKind.Automatic);
@@ -472,8 +480,10 @@ internal static partial class Program
                     Equal(UiPalette.Focus.Color, ((SolidColorBrush)cardFrame.BorderBrush).Color);
                     UiPalette.Apply(false);
                     await Until(() => ((SolidColorBrush)cardFrame.BorderBrush).Color == UiPalette.Focus.Color);
+                    CheckPreviewHeading();
                     UiPalette.Apply(true);
                     await Until(() => ((SolidColorBrush)cardFrame.BorderBrush).Color == UiPalette.Focus.Color);
+                    CheckPreviewHeading();
                     quick.Width = 700; quick.Height = 450; quick.UpdateLayout();
                     var action = ButtonNamed(quick, "确认本屏选窗");
                     var point = action.TranslatePoint(new Point(), quick);
@@ -501,6 +511,7 @@ internal static partial class Program
                 await Task.Delay(60);
                 Equal(UiPalette.Canvas.Color, ((SolidColorBrush)window.Background).Color);
                 Equal(UiPalette.Ink.Color, ((SolidColorBrush)rowTitle.Foreground).Color);
+                CheckPreviewHeading();
                 Screenshot(window, "paneset-appearance-light");
                 Invoke(ButtonNamed(window, "最小化"));
                 await Until(() => window.WindowState == WindowState.Minimized);
