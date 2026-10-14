@@ -413,7 +413,7 @@ internal static partial class Program
             Equal(ArrangementKind.Grid, (ArrangementKind)((ComboBoxItem)picker.SelectedItem).Tag);
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not UnavailableException)
         {
             throw new Exception($"Local layout input failed: {WindowEvidence(window)}; search={((TextBox)window.FindName("SearchBox")).Text}", e);
         }
