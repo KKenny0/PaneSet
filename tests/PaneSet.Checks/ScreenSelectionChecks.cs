@@ -76,8 +76,17 @@ internal static partial class Program
         await Until(() => control.IsMeasureValid && control.IsArrangeValid && control.ActualWidth > 0 && control.ActualHeight > 0 && control.IsVisible);
         var point = control.PointToScreen(new Point(control.ActualWidth / 2, control.ActualHeight / 2));
         var native = new Native.Point { X = (int)point.X, Y = (int)point.Y };
-        await ClickNativeOwned(new System.Windows.Interop.WindowInteropHelper(window).Handle, native);
+        var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+        Native.GetWindowThreadProcessId(handle, out uint pid);
+        if (pid != Environment.ProcessId) throw new Exception("Mouse target is not check-owned; injection refused.");
+        await ClickNativeOwned(handle, native);
     }
+    private static Task ClickNativeOwned(Fixture fixture, nint handle, Native.Point native)
+    {
+        RequireFixtureTarget(fixture, handle);
+        return ClickNativeOwned(handle, native);
+    }
+
     private static async Task ClickNativeOwned(nint handle, Native.Point native)
     {
         nint actual = WindowFromPoint(native);
@@ -86,14 +95,15 @@ internal static partial class Program
             Native.GetWindowRect(handle, out var rect); Native.GetWindowThreadProcessId(actual, out uint actualPid);
             throw new Exception($"Mouse target is not the fixture-owned window; injection refused. expected={handle}, actual={actual}, actualPid={actualPid}, actualClass={Native.Text(actual, true)}, actualRoot={GetAncestor(actual, 2)}, foreground={GetForegroundWindow()}, point={native.X},{native.Y}, bounds={rect.Value}, visible={Native.IsWindowVisible(handle)}, minimized={Native.IsIconic(handle)}, enabled={IsWindowEnabled(handle)}, dpi={Native.GetDpiForWindow(handle)}, awareness={GetAwarenessFromDpiAwarenessContext(GetThreadDpiAwarenessContext())}");
         }
-        if ((GetAsyncKeyState(1) & 0x8000) != 0 || (GetAsyncKeyState(2) & 0x8000) != 0)
-            throw new Exception("Mouse input precondition failed: a physical button is already pressed; injection refused.");
+        RequireInputIdle();
         bool swapped = GetSystemMetrics(23) != 0;
         uint down = swapped ? 8u : 2u, up = swapped ? 16u : 4u;
         Native.GetCursorPos(out var original);
         try
         {
             Equal(true, SetCursorPos(native.X, native.Y));
+            if (WindowFromPoint(native) != handle) throw new Exception("Mouse target changed; injection refused.");
+            RequireInputIdle();
             var inputs = new[] { new MouseInput { Flags = down }, new MouseInput { Flags = up } };
             uint inserted = SendInput(2, inputs, 40); int error = System.Runtime.InteropServices.Marshal.GetLastWin32Error();
             if (inserted == 1) SendInput(1, new[] { new MouseInput { Flags = up } }, 40);
@@ -229,25 +239,38 @@ internal static partial class Program
         using var manager = new WindowManager(); var display = WindowManager.DisplayFor(fixture.Handles[0]);
         var targets = fixture.Handles.Select(h => manager.ListWindows(display).Single(t => t.Handle == h)).ToArray();
         var originals = targets.Select(manager.ReadState).ToArray();
+        static async Task Refused(Func<Task> inject)
+        {
+            try { await inject(); throw new Exception("Unsafe target accepted by input protection."); }
+            catch (Exception e) when (e.Message.Contains("injection refused")) { }
+        }
+        await Refused(() => SendKeys(new Window(), 0x0D));
+        await Refused(() => SendKeys(fixture, 0, 0x0D));
+        await Refused(() => Chord(new Window(), 0x20));
+        await Refused(() => Chord(fixture, 0, 0x20));
         var panel = new MainWindow(manager, display, targets, enableShortcuts: false); panel.Show();
         try
         {
             var picker = await OpenPickerForFixture(panel, targets[0].Handle, targets);
             await ShowCandidates(picker); var second = Candidate(picker, targets[1].Title);
             second.Focus(); await Until(() => System.Windows.Input.Keyboard.FocusedElement == second);
-            await SendKeys(0x20); await Until(() => second.IsChecked == true);
+            await SendKeys(picker, 0x20); await Until(() => second.IsChecked == true);
             await SelectColumnsByInput(picker);
             for (int i = 0; i < 3; i++) Equal(originals[i], manager.ReadState(targets[i]));
             var combo = Elements<ComboBox>(picker).Single(); combo.Focus(); combo.IsDropDownOpen = true;
             await Until(() => combo.IsDropDownOpen);
-            await SendKeys(0x0D); await Until(() => !combo.IsDropDownOpen);
+            await SendKeys(picker, 0x0D); await Until(() => !combo.IsDropDownOpen);
             Equal(true, picker.IsVisible); Equal(false, manager.HasUndo);
             for (int i = 0; i < 3; i++) Equal(originals[i], manager.ReadState(targets[i]));
-            await SendKeys(0x0D); await Until(() => !picker.IsVisible && !manager.HasPending && manager.HasUndo);
+            await SendKeys(picker, 0x0D); await Until(() => !picker.IsVisible && !manager.HasPending && manager.HasUndo);
+            var layout = LayoutEngine.Arrange(display.WorkArea, 2, ArrangementKind.Columns);
+            Equal(layout[0], manager.ReadState(targets[0]).Bounds);
+            Equal(layout[1], manager.ReadState(targets[1]).Bounds);
+            Equal(originals[2], manager.ReadState(targets[2]));
             Equal(true, (await manager.UndoAsync()).Success);
             for (int i = 0; i < 3; i++) Equal(originals[i], manager.ReadState(targets[i]));
             picker = await OpenPickerForFixture(panel, targets[0].Handle, targets);
-            await SendKeys(0x1B); await Until(() => !picker.IsVisible); Equal(false, manager.HasUndo);
+            await SendKeys(picker, 0x1B); await Until(() => !picker.IsVisible); Equal(false, manager.HasUndo);
         }
         finally { panel.Exit(); }
     }
@@ -273,13 +296,24 @@ internal static partial class Program
         }
         try
         {
+            Invoke(ButtonNamed(panel, "设置"));
+            await Until(() => Application.Current.Windows.Cast<Window>().OfType<SettingsWindow>().Any());
+            var settings = Application.Current.Windows.Cast<Window>().OfType<SettingsWindow>().Single();
+            try
+            {
+                var binding = Elements<ComboBox>(settings).Single(c => System.Windows.Automation.AutomationProperties.GetName(c) == "SelectScreen 主键");
+                var row = (StackPanel)((FrameworkElement)binding.Parent).Parent;
+                if (!Elements<TextBlock>(row).Any(t => t.Text.Contains("已生效：")))
+                    throw new UnavailableException("Configured B shortcut is not exclusively registered; not injected.");
+            }
+            finally { settings.Close(); }
             Observe("before-initial-top");
             await fixture.Send("top 0");
             var bounds = manager.ReadState(targets[0]).Bounds;
-            await ClickNativeOwned(targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+            await ClickNativeOwned(fixture, targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
             Observe("after-initial-click");
             await Until(() => GetForegroundWindow() == fixture.Handles[0]);
-            await SendKeys(0x11, 0x12, 0x81);
+            await SendKeys(fixture, targets[0].Handle, 0x11, 0x12, 0x81);
             await Until(() => Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Any());
             var picker = Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Single(); await Ready(picker);
             CheckPickerBounds(picker, display);
@@ -289,9 +323,9 @@ internal static partial class Program
             Equal(true, Candidate(picker, targets[0].Title).IsChecked);
             var second = Candidate(picker, targets[1].Title); second.Focus();
             await Until(() => System.Windows.Input.Keyboard.FocusedElement == second);
-            await SendKeys(0x20); await Until(() => second.IsChecked == true);
+            await SendKeys(picker, 0x20); await Until(() => second.IsChecked == true);
             await SelectColumnsByInput(picker);
-            await SendKeys(0x0D); await Until(() => !picker.IsVisible && !manager.HasPending && manager.HasUndo);
+            await SendKeys(picker, 0x0D); await Until(() => !picker.IsVisible && !manager.HasPending && manager.HasUndo);
             Equal(originals[2], manager.ReadState(targets[2]));
             var applied = targets.Select(manager.ReadState).ToArray();
             Observe("after-first-arrange");
@@ -301,16 +335,16 @@ internal static partial class Program
             Observe("after-foreground-request");
             await Until(() => GetForegroundWindow() == targets[0].Handle);
             Observe("before-second-entry");
-            await SendKeys(0x11, 0x12, 0x81);
+            await SendKeys(fixture, targets[0].Handle, 0x11, 0x12, 0x81);
             await Until(() => Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Any());
             picker = Application.Current.Windows.Cast<Window>().OfType<QuickSelectWindow>().Single(); await Ready(picker);
             CheckPickerBounds(picker, display);
-            await SendKeys(0x1B); await Until(() => !picker.IsVisible); Equal(true, manager.HasUndo);
+            await SendKeys(picker, 0x1B); await Until(() => !picker.IsVisible); Equal(true, manager.HasUndo);
             for (int i = 0; i < 3; i++) Equal(applied[i], manager.ReadState(targets[i]));
             Equal(true, (await manager.UndoAsync()).Success);
             for (int i = 0; i < 3; i++) Equal(originals[i], manager.ReadState(targets[i]));
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not UnavailableException)
         {
             Observe("failure");
             throw new Exception("Global B input failed. Stage observations:\n" + string.Join("\n", trace), e);
@@ -330,7 +364,7 @@ internal static partial class Program
         {
             await fixture.Send("top 0");
             var bounds = manager.ReadState(targets[0]).Bounds;
-            await ClickNativeOwned(targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+            await ClickNativeOwned(fixture, targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
             await Until(() => GetForegroundWindow() == targets[0].Handle);
             var picker = new QuickSelectWindow(panel, manager, display, targets, targets[0].Handle, ArrangementKind.Automatic) { ShowActivated = false };
             QuickSelectionResult? result = null; picker.Completed += value => result = value;
@@ -350,9 +384,9 @@ internal static partial class Program
         var target = manager.ListWindows().Single(t => t.Handle == fixture.Handles[0]);
         await fixture.Send("top 0");
         var bounds = manager.ReadState(target).Bounds;
-        await ClickNativeOwned(target.Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+        await ClickNativeOwned(fixture, target.Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
         await Until(() => GetForegroundWindow() == target.Handle);
-        await ClickNativeOwned(target.Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 100 });
+        await ClickNativeOwned(fixture, target.Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 100 });
         await Until(() => manager.ListWindows().Single(t => t.Handle == target.Handle).Title == "PaneSet fixture received a mouse click");
     }
     private static async Task CheckQuickEntry()
@@ -544,10 +578,14 @@ internal static partial class Program
             Equal("", shortcuts.Change(ShortcutAction.SelectScreen, new(3, 0x85)));
             owner.Activate(); SetForegroundWindow(new System.Windows.Interop.WindowInteropHelper(owner).Handle);
             await Until(() => GetForegroundWindow() == new System.Windows.Interop.WindowInteropHelper(owner).Handle);
-            await Chord(0x82); await Until(() => count == 1);
-            await Chord(0x80); await Task.Delay(120); Equal(1, count);
-            await Chord(0x84); await Until(() => count == 2);
-            await Chord(0x85); await Until(() => count == 3);
+            await Chord(owner, 0x82); await Until(() => count == 1);
+            var handle = new System.Windows.Interop.WindowInteropHelper(owner).Handle;
+            if (!RegisterHotKey(handle, 90, 0x4003, 0x80))
+                throw new UnavailableException("Old configured shortcut is owned by another application; not injected.");
+            try { await Chord(owner, 0x80); await Task.Delay(120); Equal(1, count); }
+            finally { UnregisterHotKey(handle, 90); }
+            await Chord(owner, 0x84); await Until(() => count == 2);
+            await Chord(owner, 0x85); await Until(() => count == 3);
         }
         finally { owner.Close(); Directory.Delete(Path.GetDirectoryName(path)!, true); }
     }

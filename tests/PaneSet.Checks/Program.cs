@@ -523,6 +523,11 @@ internal static partial class Program
     {
         private readonly Process process;
         public nint[] Handles { get; }
+        public bool Owns(nint handle)
+        {
+            Native.GetWindowThreadProcessId(handle, out uint pid);
+            return !process.HasExited && Handles.Contains(handle) && pid == process.Id;
+        }
         private Fixture(Process process, nint[] handles) { this.process = process; Handles = handles; }
         public static async Task<Fixture> Start(int count = 3)
         {

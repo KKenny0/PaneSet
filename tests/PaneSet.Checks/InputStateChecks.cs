@@ -8,6 +8,43 @@ namespace PaneSet.Checks;
 
 internal static partial class Program
 {
+    private static void RequireInputIdle()
+    {
+        if (Enumerable.Range(1, 255).Any(key => (GetAsyncKeyState(key) & 0x8000) != 0))
+            throw new Exception("Input precondition: a key/button is already pressed; injection refused.");
+    }
+
+    private static void RequireForegroundInput(nint handle)
+    {
+        if (handle == 0 || !Native.IsWindowVisible(handle) || Native.IsIconic(handle) || !IsWindowEnabled(handle) || GetForegroundWindow() != handle)
+            throw new Exception("Input target is not the visible enabled foreground window; injection refused.");
+        RequireInputIdle();
+    }
+
+    private static nint KeyboardTarget(Window window)
+    {
+        var handle = new WindowInteropHelper(window).Handle;
+        Native.GetWindowThreadProcessId(handle, out uint pid);
+        if (pid != Environment.ProcessId || !window.IsVisible || window.WindowState != WindowState.Normal || !window.IsKeyboardFocusWithin
+            || (window is QuickSelectWindow picker && !picker.IsReady))
+            throw new Exception("Input target is not the ready focused check-owned window; injection refused.");
+        return handle;
+    }
+
+    private static void RequireFixtureTarget(Fixture fixture, nint handle)
+    {
+        if (!fixture.Owns(handle))
+            throw new Exception("Input target is not the live fixture-owned window; injection refused.");
+    }
+
+    private static Task SendKeys(Window window, params byte[] keys) => SendKeys(KeyboardTarget(window), keys);
+
+    private static Task SendKeys(Fixture fixture, nint handle, params byte[] keys)
+    {
+        RequireFixtureTarget(fixture, handle);
+        return SendKeys(handle, keys);
+    }
+
     private static string WindowEvidence(Window window)
     {
         var handle = new WindowInteropHelper(window).Handle;
@@ -43,7 +80,7 @@ internal static partial class Program
                 throw new Exception("Local layout target is not the focused foreground window; injection refused.");
             if (observedKeys.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0))
                 throw new Exception("Local layout precondition: an input key/button is already pressed; injection refused.");
-            await SendKeys(keys);
+            await SendKeys(window, keys);
         }
         finally
         {
@@ -67,10 +104,10 @@ internal static partial class Program
                 throw new Exception("Layout key target is not the ready foreground picker; injection refused.");
             if (new[] { 0x10, 0x11, 0x12, 0x5B, 0x5C, 0x31 }.Any(k => (GetAsyncKeyState(k) & 0x8000) != 0))
                 throw new Exception("Layout key precondition failed: a key is already pressed; injection refused.");
-            await SendKeys(0x12, 0x31);
+            await SendKeys(picker, 0x12, 0x31);
             await Until(() => picker.Kind == ArrangementKind.Columns);
         }
-        catch (Exception e)
+        catch (Exception e) when (e is not UnavailableException)
         {
             throw new Exception($"Alt+1 failed. Before: {before}\nAfter: {WindowEvidence(picker)}\nEvents: {string.Join(" | ", events)}", e);
         }
@@ -96,7 +133,7 @@ internal static partial class Program
         {
             await fixture.Send("top 0");
             var bounds = manager.ReadState(targets[0]).Bounds;
-            await ClickNativeOwned(targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+            await ClickNativeOwned(fixture, targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
             await Until(() => GetForegroundWindow() == targets[0].Handle);
             var result = panel.OpenQuickSelection(targets[0].Handle, targets)!;
             picker = result; await Ready(result); return result;

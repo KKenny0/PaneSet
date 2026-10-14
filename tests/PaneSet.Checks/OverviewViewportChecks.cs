@@ -28,7 +28,7 @@ internal static partial class Program
                 panel.Show();
                 await fixture.Send("top 5");
                 var bounds = manager.ReadState(targets[5]).Bounds;
-                await ClickNativeOwned(targets[5].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+                await ClickNativeOwned(fixture, targets[5].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
                 await Until(() => GetForegroundWindow() == targets[5].Handle);
                 var picker = panel.OpenQuickSelection(targets[5].Handle, targets) ?? throw new Exception("No viewport picker created.");
                 picker.Completed += result => Console.WriteLine($"SESSION {result}; {WindowEvidence(picker)}");

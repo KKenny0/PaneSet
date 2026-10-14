@@ -129,9 +129,18 @@ internal static partial class Program
     }
 
     private static void Toggle(CheckBox box) => ((IToggleProvider)new CheckBoxAutomationPeer(box).GetPattern(PatternInterface.Toggle)).Toggle();
-    private static Task Chord(byte key)
+    private static Task Chord(Window window, byte key) => Chord(KeyboardTarget(window), key);
+
+    private static Task Chord(Fixture fixture, nint handle, byte key)
+    {
+        RequireFixtureTarget(fixture, handle);
+        return Chord(handle, key);
+    }
+
+    private static Task Chord(nint handle, byte key)
     {
         if (IntPtr.Size != 8) throw new UnavailableException("Keyboard injection check requires x64.");
+        RequireForegroundInput(handle);
         KeyInput[] keys = [new() { Type = 1, Key = 0x11 }, new() { Type = 1, Key = 0x12 }, new() { Type = 1, Key = key },
             new() { Type = 1, Key = key, Flags = 2 }, new() { Type = 1, Key = 0x12, Flags = 2 }, new() { Type = 1, Key = 0x11, Flags = 2 }];
         uint inserted = SendInput((uint)keys.Length, keys, Marshal.SizeOf<KeyInput>());
@@ -145,6 +154,13 @@ internal static partial class Program
         return Task.CompletedTask;
     }
 
+    private static void SavePanelInputSettings()
+    {
+        new ShortcutSettings { Shortcuts = new() {
+            [ShortcutAction.OpenPanel] = new(3, 0x20), [ShortcutAction.Restore] = new(3, 0x5A),
+            [ShortcutAction.ArrangeScreen] = null, [ShortcutAction.SelectScreen] = null } }.Save(TestSettingsPath);
+    }
+
     private static async Task CheckShortcuts()
     {
         await using var fixture = await Fixture.Start();
@@ -153,7 +169,8 @@ internal static partial class Program
         using var manager = new WindowManager();
         var candidates = manager.ListWindows().Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
         var originals = candidates.ToDictionary(t => t.Handle, manager.ReadState);
-        var window = new MainWindow(manager, WindowManager.DisplayFor(fixture.Handles[0]), candidates);
+        SavePanelInputSettings();
+        var window = new MainWindow(manager, WindowManager.DisplayFor(fixture.Handles[0]), candidates, settingsPath: TestSettingsPath);
         window.Show(); await Task.Delay(120);
         try
         {
@@ -161,10 +178,11 @@ internal static partial class Program
             if (hint.Text.Contains("不可用")) throw new UnavailableException("Global shortcut already owned: " + hint.Text);
             window.WindowState = System.Windows.WindowState.Minimized;
             await Until(() => IsIconic(new WindowInteropHelper(window).Handle));
-            await Chord(0x20);
+            SetForegroundWindow(fixture.Handles[0]); await Until(() => GetForegroundWindow() == fixture.Handles[0]);
+            await Chord(fixture, fixture.Handles[0], 0x20);
             await Until(() => window.WindowState == System.Windows.WindowState.Normal && GetForegroundWindow() == new WindowInteropHelper(window).Handle);
             SetForegroundWindow(fixture.Handles[0]); await Until(() => GetForegroundWindow() == fixture.Handles[0]);
-            await Chord(0x20);
+            await Chord(fixture, fixture.Handles[0], 0x20);
             await Until(() => window.WindowState == System.Windows.WindowState.Normal && GetForegroundWindow() == new WindowInteropHelper(window).Handle);
             Equal(WindowManager.DisplayFor(fixture.Handles[0]).Handle, ((DisplayArea)((ComboBox)window.FindName("DisplayPicker")).SelectedItem).Handle);
             Equal(WindowManager.DisplayFor(fixture.Handles[0]).Handle, WindowManager.DisplayFor(new WindowInteropHelper(window).Handle).Handle);
@@ -177,18 +195,18 @@ internal static partial class Program
             await fixture.Send("stall");
             Invoke(ButtonNamed(window, "排布所选窗口"));
             await Until(() => manager.HasPending);
-            await Chord(0x5A); await Task.Delay(80);
+            await Chord(window, 0x5A); await Task.Delay(80);
             Equal(true, manager.HasPending);
             Equal(false, ((Button)window.FindName("UndoButton")).IsEnabled);
             await Until(() => window.WindowState == System.Windows.WindowState.Minimized && !manager.HasPending);
             SetForegroundWindow(fixture.Handles[0]); await Until(() => GetForegroundWindow() == fixture.Handles[0]);
-            await Chord(0x5A); await Until(() => !manager.HasUndo && !manager.HasPending);
+            await Chord(fixture, fixture.Handles[0], 0x5A); await Until(() => !manager.HasUndo && !manager.HasPending);
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
             // WM_CLOSE and Esc keep the shortcut owner alive until explicit exit.
             window.WindowState = System.Windows.WindowState.Normal; window.Close();
             Equal(System.Windows.WindowState.Minimized, window.WindowState);
         }
-        finally { window.Exit(); }
+        finally { window.Exit(); Directory.Delete(Path.GetDirectoryName(TestSettingsPath)!, true); }
     }
 
     private static async Task CheckShortcutRouting()
@@ -200,7 +218,8 @@ internal static partial class Program
         using var manager = new WindowManager();
         var candidates = manager.ListWindows().Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
         var originals = candidates.ToDictionary(t => t.Handle, manager.ReadState);
-        var window = new MainWindow(manager, display, candidates);
+        SavePanelInputSettings();
+        var window = new MainWindow(manager, display, candidates, settingsPath: TestSettingsPath);
         window.Show(); await Task.Delay(120);
         try
         {
@@ -231,14 +250,15 @@ internal static partial class Program
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
             window.WindowState = System.Windows.WindowState.Normal; window.Close(); Equal(true, IsIconic(handle));
         }
-        finally { window.Exit(); }
+        finally { window.Exit(); Directory.Delete(Path.GetDirectoryName(TestSettingsPath)!, true); }
         var owner = new Window { Width = 300, Height = 200 }; owner.Show();
         var handleOwner = new WindowInteropHelper(owner).Handle;
         try
         {
+            SavePanelInputSettings();
             Equal(true, RegisterHotKey(handleOwner, 10, 0x4003, 0x20));
             using var conflictManager = new WindowManager();
-            var conflict = new MainWindow(conflictManager, display, candidates);
+            var conflict = new MainWindow(conflictManager, display, candidates, settingsPath: TestSettingsPath);
             conflict.Show(); await Task.Delay(120);
             try
             {
@@ -250,7 +270,7 @@ internal static partial class Program
             finally { conflict.Exit(); }
             Equal(true, RegisterHotKey(handleOwner, 11, 0x4003, 0x5A));
         }
-        finally { UnregisterHotKey(handleOwner, 10); UnregisterHotKey(handleOwner, 11); owner.Close(); }
+        finally { UnregisterHotKey(handleOwner, 10); UnregisterHotKey(handleOwner, 11); owner.Close(); Directory.Delete(Path.GetDirectoryName(TestSettingsPath)!, true); }
     }
 
     [DllImport("user32.dll", SetLastError = true)] private static extern bool GetKeyboardState(byte[] state);
@@ -356,9 +376,10 @@ internal static partial class Program
         finally { window.Exit(); }
     }
 
-    private static async Task SendKeys(params byte[] down)
+    private static async Task SendKeys(nint handle, params byte[] down)
     {
         if (IntPtr.Size != 8) throw new UnavailableException("Local key injection check requires x64.");
+        RequireForegroundInput(handle);
         KeyInput[] input = down.Select(key => new KeyInput { Type = 1, Key = key })
             .Concat(down.Reverse().Select(key => new KeyInput { Type = 1, Key = key, Flags = 2 })).ToArray();
         uint inserted = SendInput((uint)input.Length, input, Marshal.SizeOf<KeyInput>());

@@ -83,7 +83,7 @@ internal static partial class Program
             foreach (int count in new[] { 2, 3, 8 })
             {
                 await fixture.Send("top 0"); var bounds = manager.ReadState(targets[0]).Bounds;
-                await ClickNativeOwned(targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+                await ClickNativeOwned(fixture, targets[0].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
                 var afterActivation = manager.ReadState(targets[0]);
                 if (afterActivation != original[0])
                     throw new Exception($"Sizing fixture changed before opening overview, count={count}, expected={original[0]}, actual={afterActivation}");
@@ -160,7 +160,7 @@ internal static partial class Program
         {
             await fixture.Send("top 5");
             var bounds = manager.ReadState(targets[5]).Bounds;
-            await ClickNativeOwned(targets[5].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
+            await ClickNativeOwned(fixture, targets[5].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 });
             await Until(() => GetForegroundWindow() == targets[5].Handle);
             picker = panel.OpenQuickSelection(targets[5].Handle, targets)!;
             picker.Completed += result => overviewCompletion = result;
@@ -174,7 +174,7 @@ internal static partial class Program
             Toggle(Candidate(picker, targets[2].Title));
             var move = ButtonNamed(picker, "前移 · " + targets[2].Title); move.Focus();
             await Until(() => System.Windows.Input.Keyboard.FocusedElement == move && GetForegroundWindow() == new WindowInteropHelper(picker).Handle);
-            await SendKeys(0x0D);
+            await SendKeys(picker, 0x0D);
             await Until(() => Elements<TextBlock>(picker).Any(t => t.Text == "2 · " + targets[2].Title));
             Invoke(ButtonNamed(picker, "前移 · " + targets[2].Title));
             await Until(() => Elements<TextBlock>(picker).Any(t => t.Text == "1 · " + targets[2].Title));
@@ -183,7 +183,7 @@ internal static partial class Program
             Equal(1, Elements<CheckBox>(picker).Count(c => c.IsVisible));
             Equal(true, ButtonNamed(picker, "确认本屏选窗").IsEnabled);
             Equal(true, Elements<TextBlock>(picker).Any(t => t.Text == "1 · " + targets[2].Title));
-            search.Focus(); await SendKeys(0x0D); Equal(true, picker.IsVisible); Equal(false, manager.HasUndo);
+            search.Focus(); await SendKeys(picker, 0x0D); Equal(true, picker.IsVisible); Equal(false, manager.HasUndo);
             search.Text = "";
             await fixture.Send("long");
             await Until(() => Elements<CheckBox>(picker).Any(c => System.Windows.Automation.AutomationProperties.GetName(c).Length > 200));
