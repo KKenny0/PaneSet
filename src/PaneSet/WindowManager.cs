@@ -9,12 +9,12 @@ public sealed record WindowTarget(nint Handle, uint ProcessId, uint ThreadId, lo
     long Generation, string Application, string Title);
 public sealed record WindowStateInfo(WindowRect Bounds, bool Maximized);
 public sealed record WindowOutcome(WindowTarget Target, bool Success, string Message);
-public sealed record OperationReport(IReadOnlyList<WindowOutcome> Windows, bool Pending = false, bool NeedsRefresh = false)
+public sealed record OperationReport(IReadOnlyList<WindowOutcome> Windows, bool Pending = false, bool NeedsRefresh = false, string Notice = "")
 {
     public bool Success => !Pending && !NeedsRefresh && Windows.Count > 0 && Windows.All(w => w.Success);
 }
 
-public sealed class WindowManager : IDisposable
+public sealed partial class WindowManager : IDisposable
 {
     public static nint Foreground => Native.GetForegroundWindow();
     public static DisplayArea DisplayFor(nint window)
@@ -34,20 +34,21 @@ public sealed class WindowManager : IDisposable
     }
     private readonly object sync = new();
     private readonly Dictionary<nint, long> known = [];
-    private readonly IVirtualDesktopManager desktop;
     private readonly Native.EventProc destroyed;
     private readonly System.Runtime.InteropServices.GCHandle eventRoot;
     private readonly nint hook;
     private long generation;
     private bool disposed;
 
-    public WindowManager()
+    public WindowManager() : this(new PlacementEnvironment()) { }
+
+    internal WindowManager(PlacementEnvironment environment)
     {
-        desktop = (IVirtualDesktopManager)Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("AA509086-5CA9-4C25-8F95-589D3C07B48A"))!)!;
+        placementEnvironment = environment;
         destroyed = (_, _, window, obj, child, _, _) => { if (obj == 0 && child == 0) lock (sync) known.Remove(window); };
         eventRoot = System.Runtime.InteropServices.GCHandle.Alloc(destroyed);
         hook = Native.SetWinEventHook(0x8001, 0x8001, 0, destroyed, 0, 0, 2);
-        if (hook == 0) { eventRoot.Free(); throw new InvalidOperationException("无法监测窗口关闭，请重新启动。"); }
+        if (hook == 0) { eventRoot.Free(); placementEnvironment.Dispose(); throw new InvalidOperationException("无法监测窗口关闭，请重新启动。"); }
     }
 
     public IReadOnlyList<WindowTarget> ListWindows(DisplayArea? display = null)
@@ -84,7 +85,7 @@ public sealed class WindowManager : IDisposable
             || Native.GetWindow(window, 4) != 0 || (style & 0x40000) == 0 || (extended & 0x80) != 0
             || (display != null && Native.MonitorFromWindow(window, 2) != display.Handle) || string.IsNullOrWhiteSpace(Native.Text(window))) return false;
         if (Native.Cloaked(window, 14, out int cloaked, 4) != 0 || cloaked != 0) return false;
-        if (desktop.IsWindowOnCurrentVirtualDesktop(window, out bool current) != 0 || !current) return false;
+        if (!placementEnvironment.IsCurrent(window)) return false;
         var bounds = Native.Bounds(window);
         var monitor = Native.Monitor(Native.MonitorFromWindow(window, 2)).Monitor.Value;
         return Native.IsZoomed(window) || (style & 0xC00000) != 0
@@ -104,7 +105,12 @@ public sealed class WindowManager : IDisposable
         catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
     }
 
-    private sealed record Snapshot(WindowTarget Target, WindowStateInfo State, Native.Placement Placement, DisplayArea Display, DisplayArea Destination);
+    private sealed record Snapshot(WindowTarget Target, WindowStateInfo State, Native.Placement Placement, DisplayArea Display, DisplayArea Destination)
+    {
+        public PlacementDisplay? SourceEnvironment { get; init; }
+        public PlacementDisplay? DestinationEnvironment { get; init; }
+        public Guid DesktopId { get; init; }
+    }
     private List<Snapshot> undo = [];
     private Task<OperationReport>? operation;
     public bool HasUndo { get { lock (sync) return undo.Count > 0; } }
@@ -137,6 +143,7 @@ public sealed class WindowManager : IDisposable
 
     private OperationReport ApplyCore(WindowTarget[] targets, DisplayArea display, WindowRect[] layout, bool currentScreenOnly)
     {
+        var positions = CapturePositions(targets, display, layout);
         Snapshot[] originals;
         try
         {
@@ -179,18 +186,16 @@ public sealed class WindowManager : IDisposable
                     Native.ShowWindow(target.Handle, 4);
                     if (!WaitFor(target, s => !s.Maximized)) throw new InvalidOperationException("应用未能退出最大化状态。");
                 }
-                var visible = Native.Bounds(target.Handle);
-                if (!Native.GetWindowRect(target.Handle, out var outer)) throw new System.ComponentModel.Win32Exception();
                 var rect = layout[i];
-                if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份发生变化。");
-                if (!ContextMatches(target, snapshot.Display) || !Eligible(target.Handle)
-                    || Native.Monitor(display.Handle).Work.Value != display.WorkArea)
-                    throw new InvalidOperationException("窗口状态、桌面或显示器已改变，请刷新。");
                 // Synchronous native work runs off the UI thread; a timeout never releases conflicting mutations.
-                mutationStarted = true;
-                if (!Native.SetWindowPos(target.Handle, 0, rect.X - (visible.X - outer.Left), rect.Y - (visible.Y - outer.Top),
-                    rect.Width + outer.Right - outer.Left - visible.Width, rect.Height + outer.Bottom - outer.Top - visible.Height, 0x14))
-                    throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
+                SetVisibleBounds(target, rect, () =>
+                {
+                    if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份发生变化。");
+                    if (!ContextMatches(target, snapshot.Display) || !Eligible(target.Handle)
+                        || Native.Monitor(display.Handle).Work.Value != display.WorkArea)
+                        throw new InvalidOperationException("窗口状态、桌面或显示器已改变，请刷新。");
+                    mutationStarted = true;
+                });
                 bool success = WaitFor(target, s => s.Bounds == rect && !s.Maximized);
                 outcomes.Add(new(target, success, success ? "已排布" : "未确认窗口达到预期布局；若窗口已改变，可尝试恢复。"));
                 if (success && IdentityMatches(target)) Native.SetWindowPos(target.Handle, 0, 0, 0, 0, 0, 0x13);
@@ -208,8 +213,9 @@ public sealed class WindowManager : IDisposable
                 { if (IdentityMatches(target)) affected.Add(snapshot); }
             }
         }
-        lock (sync) if (affected.Count > 0) undo = affected;
-        return new(outcomes);
+        lock (sync) if (!disposed && affected.Count > 0) { undo = affected; singleWindowUndo = false; }
+        var report = new OperationReport(outcomes);
+        return report.Success ? report with { Notice = PublishPositions(positions, targets) } : report;
     }
 
     private static bool DisplayMatches(DisplayArea display)
@@ -231,7 +237,7 @@ public sealed class WindowManager : IDisposable
 
     private bool ContextMatches(WindowTarget target, DisplayArea display) =>
         Native.Monitor(display.Handle).Work.Value == display.WorkArea && Native.MonitorFromWindow(target.Handle, 2) == display.Handle
-        && desktop.IsWindowOnCurrentVirtualDesktop(target.Handle, out bool current) == 0 && current;
+        && placementEnvironment.IsCurrent(target.Handle);
 
     private bool WaitFor(WindowTarget target, Func<WindowStateInfo, bool> expected)
     {
@@ -267,21 +273,25 @@ public sealed class WindowManager : IDisposable
         {
             if (operation != null) return new([], Pending: true);
             var snapshots = undo.ToArray();
-            operation = Task.Run(() => RestoreCore(snapshots));
+            bool single = singleWindowUndo;
+            operation = Task.Run(() => RestoreCore(snapshots, single));
         }
         return await CollectWithinDeadline();
     }
 
-    private OperationReport RestoreCore(Snapshot[] snapshots)
+    private OperationReport RestoreCore(Snapshot[] snapshots, bool single)
     {
         var remaining = new List<Snapshot>();
         var outcomes = new List<WindowOutcome>();
         foreach (var snapshot in snapshots)
         {
             var target = snapshot.Target;
+            WindowStateInfo? before = null;
+            bool attempted = false;
             try
             {
                 if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份变化，已跳过。");
+                if (single) ValidatePlacementRestore(snapshot);
                 // A partial arrangement may leave a target on either its source or destination monitor.
                 if (!ContextMatches(target, snapshot.Destination) && !ContextMatches(target, snapshot.Display))
                     throw new InvalidOperationException("显示器或工作区域已改变，无法精确恢复；记录已保留，可稍后重试。");
@@ -289,6 +299,9 @@ public sealed class WindowManager : IDisposable
                     throw new InvalidOperationException("原显示器工作区域已改变；恢复记录已保留，可稍后重试。");
                 var placement = snapshot.Placement;
                 if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份变化，已跳过。");
+                before = ReadState(target);
+                if (single) ValidatePlacementRestore(snapshot);
+                attempted = true;
                 if (!Native.SetWindowPlacement(target.Handle, ref placement))
                     throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
                 bool success = WaitFor(target, s => s == snapshot.State);
@@ -300,20 +313,29 @@ public sealed class WindowManager : IDisposable
                 if (IdentityMatches(target)) remaining.Add(snapshot);
                 outcomes.Add(new(target, false, e.Message));
             }
+            finally
+            {
+                if (!single && attempted && before != null)
+                {
+                    try { if (ReadState(target) != before) lock (sync) recentPositions = null; }
+                    catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+                }
+            }
         }
-        lock (sync) undo = remaining;
+        lock (sync) if (!disposed) undo = remaining;
         return new(outcomes);
     }
 
     public WindowStateInfo ReadState(WindowTarget target)
     {
         if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份发生变化。");
-        return new(Native.Bounds(target.Handle), Native.IsZoomed(target.Handle));
+        return placementEnvironment.ReadState(target.Handle);
     }
 
     public void Dispose()
     {
-        lock (sync) { if (disposed) return; disposed = true; known.Clear(); }
+        lock (sync) { if (disposed) return; disposed = true; known.Clear(); undo.Clear(); recentPositions = null; }
+        placementEnvironment.Dispose();
         Native.UnhookWinEvent(hook);
         if (eventRoot.IsAllocated) eventRoot.Free();
     }

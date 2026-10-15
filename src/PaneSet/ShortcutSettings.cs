@@ -5,7 +5,7 @@ using System.Windows.Input;
 
 namespace PaneSet;
 
-internal enum ShortcutAction { OpenPanel = 1, Restore = 2, ArrangeScreen = 3, SelectScreen = 4 }
+internal enum ShortcutAction { OpenPanel = 1, Restore = 2, ArrangeScreen = 3, SelectScreen = 4, PlaceWindow = 5 }
 internal enum AppearanceMode { System, Light, Dark }
 internal sealed record ShortcutBinding(uint Modifiers, uint Key)
 {
@@ -31,7 +31,8 @@ internal sealed class ShortcutSettings
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PaneSet", "settings.json");
     public static ShortcutBinding Default(ShortcutAction action) => new(3, action switch {
         ShortcutAction.OpenPanel => 0x20, ShortcutAction.Restore => 0x5A,
-        ShortcutAction.ArrangeScreen => 0x31, ShortcutAction.SelectScreen => 0x32, _ => throw new ArgumentOutOfRangeException(nameof(action)) });
+        ShortcutAction.ArrangeScreen => 0x31, ShortcutAction.SelectScreen => 0x32, ShortcutAction.PlaceWindow => 0x33,
+        _ => throw new ArgumentOutOfRangeException(nameof(action)) });
     public ShortcutBinding? For(ShortcutAction action) => Shortcuts.TryGetValue(action, out var value) ? value : Default(action);
     public static ShortcutSettings Load(string path, out string notice)
     {
@@ -42,6 +43,12 @@ internal sealed class ShortcutSettings
             var settings = JsonSerializer.Deserialize<ShortcutSettings>(File.ReadAllText(path), JsonOptions);
             if (settings == null || settings.Version != 1 || settings.Shortcuts == null || !Enum.IsDefined(settings.Theme)
                 || settings.Shortcuts.Values.Any(b => b != null && !b.Valid)) throw new InvalidDataException("配置格式或版本无效");
+            if (!settings.Shortcuts.ContainsKey(ShortcutAction.PlaceWindow)
+                && Enum.GetValues<ShortcutAction>().Any(a => a != ShortcutAction.PlaceWindow && settings.For(a) == Default(ShortcutAction.PlaceWindow)))
+            {
+                settings.Shortcuts[ShortcutAction.PlaceWindow] = null;
+                notice = "单窗放置默认组合已用于旧动作，已暂时禁用单窗放置快捷键；可在设置中改绑，原绑定与外观保留。";
+            }
             var bindings = Enum.GetValues<ShortcutAction>().Select(settings.For).Where(b => b != null).ToArray();
             if (bindings.Distinct().Count() != bindings.Length) throw new InvalidDataException("配置包含重复组合");
             return settings;

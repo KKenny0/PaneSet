@@ -62,6 +62,7 @@ internal static class FixtureHost
                         case "close": windows[int.Parse(parts[1])].Close(); break;
                         case "max": windows[int.Parse(parts[1])].WindowState = WindowState.Maximized; break;
                         case "min": windows[int.Parse(parts[1])].WindowState = WindowState.Minimized; break;
+                        case "normal": windows[int.Parse(parts[1])].WindowState = WindowState.Normal; break;
                         case "block": blocked.Add(int.Parse(parts[1])); break;
                         case "link": linked = true; break;
                         case "linkscreen": linked = true; linkedPosition = (int.Parse(parts[1]), int.Parse(parts[2])); break;

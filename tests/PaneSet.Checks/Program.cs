@@ -262,6 +262,12 @@ internal static partial class Program
             Equal(new WindowRect(-955, -100, 954, 1000), layout[1]);
             return Task.CompletedTask;
         }),
+        ("placement-guards", CheckPlacementGuards),
+        ("placement-undo", CheckPlacementUndo),
+        ("placement-flow", CheckPlacementFlow),
+        ("placement", CheckPlacement),
+        ("placement-settings", CheckPlacementSettings),
+        ("placement-input", CheckPlacementInput),
         ("overview-selection-refresh", CheckOverviewSelectionRefresh),
         ("selection-eligibility", CheckSelectionEligibility),
         ("selection-order", CheckSelectionOrder),

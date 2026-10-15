@@ -16,11 +16,12 @@ internal sealed class PanelShortcuts : IDisposable
     private bool disposed;
     public string Notice { get; private set; }
     public IEnumerable<ShortcutAction> Actions => slots.Keys;
-    public string Hint => string.Join(" · ", Actions.Where(a => a is ShortcutAction.OpenPanel or ShortcutAction.Restore)
+    public string Hint => string.Join(" · ", Actions.Where(a => a is ShortcutAction.OpenPanel or ShortcutAction.Restore or ShortcutAction.PlaceWindow)
         .Select(a => $"{BindingFor(a)?.ToString() ?? "已禁用"} {Label(a)}{(slots[a].Error.Length > 0 ? "不可用（冲突），请用任务栏或面板按钮" : "")}"));
     public static string Label(ShortcutAction action) => action switch {
         ShortcutAction.OpenPanel => "打开 / 收起", ShortcutAction.Restore => "恢复",
-        ShortcutAction.ArrangeScreen => "A · 排布本屏全部窗口", _ => "B · 本屏快速选窗" };
+        ShortcutAction.ArrangeScreen => "A · 排布本屏全部窗口", ShortcutAction.SelectScreen => "B · 本屏快速选窗",
+        ShortcutAction.PlaceWindow => "单窗放置", _ => throw new ArgumentOutOfRangeException(nameof(action)) };
     public ShortcutBinding? BindingFor(ShortcutAction action) => settings.For(action);
     public int RegisteredId(ShortcutAction action) => slots[action].Id;
     public string StatusFor(ShortcutAction action) => slots[action].Error.Length > 0 ? slots[action].Error

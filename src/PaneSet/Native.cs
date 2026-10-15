@@ -68,6 +68,22 @@ internal static class Native
         if (className) GetClassName(window, value, value.Capacity); else GetWindowText(window, value, value.Capacity);
         return value.ToString();
     }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] internal struct MonitorInfoExtended
+    {
+        public int Size; public Rect Monitor, Work; public uint Flags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)] public string Device;
+    }
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "GetMonitorInfoW")]
+    private static extern bool GetMonitorInfoExtended(nint monitor, ref MonitorInfoExtended info);
+    [DllImport("user32.dll")] internal static extern nint GetWindowDpiAwarenessContext(nint window);
+    [DllImport("user32.dll")] internal static extern int GetAwarenessFromDpiAwarenessContext(nint context);
+    [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int key);
+    internal static MonitorInfoExtended MonitorExtended(nint handle)
+    {
+        var info = new MonitorInfoExtended { Size = Marshal.SizeOf<MonitorInfoExtended>(), Device = "" };
+        if (!GetMonitorInfoExtended(handle, ref info)) throw new InvalidOperationException("显示器已不可用，请重新排布。");
+        return info;
+    }
     internal static MonitorInfo Monitor(nint handle)
     {
         var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };

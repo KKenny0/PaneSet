@@ -47,6 +47,8 @@ public partial class MainWindow : Window
         WindowList.ItemsSource = view;
         LoadDisplays(display.Handle);
         SetCandidates(candidates, foreground);
+        CapturePlacementSource(candidates, foreground);
+        WatchPlacementSource();
         timer = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, async (_, _) =>
         {
             if (!busy && manager.CanCollect)
@@ -62,14 +64,8 @@ public partial class MainWindow : Window
         themeTimer.Start();
         SourceInitialized += (_, _) =>
         {
-            if (enableShortcuts) shortcuts = new(new WindowInteropHelper(this).Handle, (action, foreground) =>
-            {
-                if (settingsWindow != null) { settingsWindow.Activate(); return; }
-                if (action == ShortcutAction.OpenPanel) OpenForForeground(foreground);
-                else if (action == ShortcutAction.Restore) UndoClick(this, new());
-                else if (action == ShortcutAction.ArrangeScreen) _ = ArrangeCurrentScreenAsync(foreground);
-                else OpenQuickSelection(foreground);
-            }, settingsPath, Enum.GetValues<ShortcutAction>());
+            if (enableShortcuts) shortcuts = new(new WindowInteropHelper(this).Handle, DispatchShortcut,
+                settingsPath, Enum.GetValues<ShortcutAction>());
             UpdateShortcutHint();
             PlaceOnDisplay();
         };
@@ -82,7 +78,7 @@ public partial class MainWindow : Window
             { e.Cancel = true; exitRequested = false; }
         };
         SizeChanged += (_, _) => UpdateResponsiveLayout();
-        Closed += (_, _) => { closed = true; selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
+        Closed += (_, _) => { closed = true; placementSource = null; placementWindow?.Close(); selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
         PreviewKeyDown += (_, e) =>
         {
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
@@ -126,7 +122,7 @@ public partial class MainWindow : Window
 
     private bool TrySelectLayout(Key key, ModifierKeys modifiers)
     {
-        if (modifiers != ModifierKeys.Alt || busy || manager.HasPending || selectionWindow != null) return false;
+        if (modifiers != ModifierKeys.Alt || busy || manager.HasPending || Picking) return false;
         ArrangementKind? kind = key switch { Key.D1 => ArrangementKind.Columns, Key.D2 => ArrangementKind.MainAndOthers, Key.D3 => ArrangementKind.Grid, _ => null };
         if (kind == null) return false;
         LayoutPicker.SelectedItem = LayoutPicker.Items.Cast<ComboBoxItem>().First(item => Equals(item.Tag, kind.Value));
@@ -177,6 +173,7 @@ public partial class MainWindow : Window
 
     public void OpenForForeground(nint foreground, bool toggle = true)
     {
+        if (placementWindow != null) { placementWindow.Activate(); return; }
         if (selectionWindow != null) { selectionWindow.Activate(); return; }
         if (settingsWindow != null) { settingsWindow.Activate(); return; }
         var own = new WindowInteropHelper(this).Handle;
@@ -190,6 +187,7 @@ public partial class MainWindow : Window
                 LoadDisplays(WindowManager.DisplayFor(candidates.Any(t => t.Handle == foreground) ? foreground : 0).Handle);
                 SearchBox.Clear();
                 SetCandidates(candidates, foreground);
+                CapturePlacementSource(candidates, foreground);
                 PlaceOnDisplay();
                 StatusText.Text = "已选当前窗口。继续选择窗口，确认目标屏幕后按 Enter。";
             }
@@ -220,7 +218,8 @@ public partial class MainWindow : Window
     private void UpdateControls()
     {
         if (closed) return;
-        bool available = !busy && !manager.HasPending && selectionWindow == null && settingsWindow == null;
+        bool available = !busy && !manager.HasPending && !Picking && settingsWindow == null;
+        PlaceWindowButton.IsEnabled = available && placementSource != null;
         SettingsButton.IsEnabled = available;
         ArrangeScreenButton.IsEnabled = QuickScreenButton.IsEnabled = available;
         RecentButton.IsEnabled = available && recentGroup != null;
@@ -293,7 +292,7 @@ public partial class MainWindow : Window
     }
     private void RecentClick(object sender, RoutedEventArgs e)
     {
-        if (closed || busy || manager.HasPending || recentGroup == null) return;
+        if (closed || busy || manager.HasPending || Picking || recentGroup == null) return;
         try
         {
             var group = recentGroup;
@@ -318,13 +317,13 @@ public partial class MainWindow : Window
     }
     private async void ApplyClick(object sender, RoutedEventArgs e)
     {
-        if (busy || manager.HasPending || selected.Count < 2 || !layoutUsable || DisplayPicker.SelectedItem is not DisplayArea destination) return;
+        if (busy || manager.HasPending || Picking || selected.Count < 2 || !layoutUsable || DisplayPicker.SelectedItem is not DisplayArea destination) return;
         await ApplyGroupAsync(new(selected.Select(r => r.Target).ToArray(), destination, Kind), false);
     }
 
     private async Task ApplyGroupAsync(WindowGroup request, bool currentScreenOnly)
     {
-        if (closed || busy || manager.HasPending) return;
+        if (closed || busy || manager.HasPending || Picking || settingsWindow != null) return;
         if (request.Targets.Length < 2)
         {
             StatusText.Text = "本屏至少需要两扇合格窗口。";
@@ -340,7 +339,7 @@ public partial class MainWindow : Window
 
     internal async Task ArrangeCurrentScreenAsync(nint foreground, IReadOnlyList<WindowTarget>? candidates = null)
     {
-        if (closed || busy || manager.HasPending || settingsWindow != null || selectionWindow != null) return;
+        if (closed || busy || manager.HasPending || settingsWindow != null || Picking) return;
         try
         {
             candidates ??= manager.ListWindows();
@@ -356,7 +355,7 @@ public partial class MainWindow : Window
     private async void ArrangeScreenClick(object sender, RoutedEventArgs e) => await ArrangeCurrentScreenAsync(WindowManager.Foreground);
     internal QuickSelectWindow? OpenQuickSelection(nint foreground, IReadOnlyList<WindowTarget>? candidates = null)
     {
-        if (closed || busy || manager.HasPending || settingsWindow != null) return null;
+        if (closed || busy || manager.HasPending || settingsWindow != null || placementWindow != null) return null;
         selectionWindow?.Close();
         try
         {
@@ -399,7 +398,7 @@ public partial class MainWindow : Window
 
     private async void UndoClick(object sender, RoutedEventArgs e)
     {
-        if (busy || manager.HasPending || selectionWindow != null || !manager.HasUndo) return;
+        if (busy || manager.HasPending || Picking || !manager.HasUndo) return;
         busy = true; arranging = false; requestedGroup = null; UpdateControls();
         try { ShowReport(await manager.UndoAsync()); }
         catch (Exception exception) { StatusText.Text = exception.Message; WindowState = System.Windows.WindowState.Normal; }
@@ -411,10 +410,16 @@ public partial class MainWindow : Window
         if (report.Pending) { StatusText.Text = "正在等待目标窗口响应，完成前暂停排布和恢复。"; return; }
         if (report.Success && requestedGroup != null) recentGroup = requestedGroup;
         requestedGroup = null;
-        StatusText.Text = string.Join("\n", report.Windows.Select(w => w.Target.Title + "：" + w.Message));
-        if (report.Success && arranging)
+        StatusText.Text = string.Join("\n", report.Windows.Select(w => w.Target.Title + "：" + w.Message))
+            + (report.Notice.Length > 0 ? "\n" + report.Notice : "");
+        if (placing)
         {
-            StatusText.Text = "已排布。从任务栏或设置中的面板键打开 PaneSet，使用恢复键或按钮恢复。";
+            placing = false;
+            if (!report.Success) Native.ShowWindow(new WindowInteropHelper(this).Handle, 4);
+        }
+        else if (report.Success && arranging)
+        {
+            StatusText.Text = "已排布。从任务栏或设置中的面板键打开 PaneSet，使用恢复键或按钮恢复。" + report.Notice;
             WindowState = System.Windows.WindowState.Minimized;
         }
         else if (!report.Success) { WindowState = System.Windows.WindowState.Normal; Activate(); }
@@ -454,7 +459,7 @@ public partial class MainWindow : Window
     }
     private void SettingsClick(object sender, RoutedEventArgs e)
     {
-        if (closed || busy || manager.HasPending || settingsWindow != null || selectionWindow != null) return;
+        if (closed || busy || manager.HasPending || settingsWindow != null || Picking) return;
         settingsWindow = new SettingsWindow(this, shortcuts, themeMode, ChangeTheme);
         UpdateControls();
         try { settingsWindow.ShowDialog(); }
