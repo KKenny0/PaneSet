@@ -78,7 +78,7 @@ public partial class MainWindow : Window
             { e.Cancel = true; exitRequested = false; }
         };
         SizeChanged += (_, _) => UpdateResponsiveLayout();
-        Closed += (_, _) => { closed = true; placementSource = null; placementWindow?.Close(); selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
+        Closed += (_, _) => { closed = true; placementFeedback?.Dispose(); placementSource = null; placementWindow?.Close(); selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
         PreviewKeyDown += (_, e) =>
         {
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
@@ -407,12 +407,23 @@ public partial class MainWindow : Window
     private void ShowReport(OperationReport report)
     {
         if (closed) return;
-        if (report.Pending) { StatusText.Text = "正在等待目标窗口响应，完成前暂停排布和恢复。"; return; }
+        if (report.Pending)
+        {
+            StatusText.Text = "正在等待目标窗口响应，完成前暂停排布和恢复。";
+            if (pointerPlacing) ShowPointerFeedback(null, StatusText.Text);
+            return;
+        }
         if (report.Success && requestedGroup != null) recentGroup = requestedGroup;
         requestedGroup = null;
         StatusText.Text = string.Join("\n", report.Windows.Select(w => w.Target.Title + "：" + w.Message))
             + (report.Notice.Length > 0 ? "\n" + report.Notice : "");
-        if (placing)
+        if (pointerPlacing)
+        {
+            placing = pointerPlacing = false;
+            ShowPointerFeedback(report.Success && report.Notice.Length == 0 ? pointerTarget : null,
+                string.Join(" ", report.Windows.Select(w => w.Message)) + (report.Notice.Length > 0 ? " " + report.Notice : ""));
+        }
+        else if (placing)
         {
             placing = false;
             if (!report.Success) Native.ShowWindow(new WindowInteropHelper(this).Handle, 4);
@@ -424,7 +435,7 @@ public partial class MainWindow : Window
         }
         else if (!report.Success) { WindowState = System.Windows.WindowState.Normal; Activate(); }
     }
-    private void UpdateShortcutHint() => ShortcutText.Text = (shortcuts?.Hint ?? "快捷键未启用") + " · Enter 排布 · Alt+S 轮换";
+    private void UpdateShortcutHint() => ShortcutText.Text = (shortcuts?.Hint ?? "快捷键未启用") + " · 放置键：指向另一扇窗口 · Enter 排布 · Alt+S 轮换";
     private void ApplyTheme()
     {
         bool dark = ThemeSupport.ResolveDark(themeMode);

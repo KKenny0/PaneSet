@@ -495,7 +495,8 @@ internal static partial class Program
             Equal(3, Elements<CheckBox>(window).Count(b => b.IsChecked == true));
             Invoke(ButtonNamed(window, "排布所选窗口")); await Until(() => window.WindowState == System.Windows.WindowState.Minimized);
             window.WindowState = System.Windows.WindowState.Normal;
-            Invoke(ButtonNamed(window, "恢复上次排布")); await Until(() => !manager.HasUndo && !manager.HasPending);
+            Invoke(ButtonNamed(window, "恢复上次排布"));
+            await Until(() => !manager.HasUndo && !manager.HasPending && ((ItemsControl)window.FindName("WindowList")).IsEnabled);
             foreach (var box in Elements<CheckBox>(window).Where(b => b.IsChecked != true && fixture.Handles.Contains(((WindowRow)b.DataContext).Target.Handle))) Toggle(box);
             layout.SelectedIndex = 0;
             // Fixture.Start uses this host executable: apphost and `dotnet ...dll` have different process names.

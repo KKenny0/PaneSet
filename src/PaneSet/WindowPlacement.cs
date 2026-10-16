@@ -79,7 +79,8 @@ public sealed partial class WindowManager
             lock (sync)
             {
                 if (operation != null) return new([], Pending: true);
-                operation = Task.Run(() => PlaceCore(source, positions, rect));
+                operation = Task.Run(() => PlaceCore(source, positions.Environment, positions.DesktopId, rect,
+                    () => ValidatePlacement(source, positions.Version)));
             }
         }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
@@ -87,28 +88,101 @@ public sealed partial class WindowManager
         return await CollectWithinDeadline();
     }
 
-    private OperationReport PlaceCore(WindowTarget source, LayoutPositions positions, WindowRect rect)
+    internal sealed record ReferencePosition(WindowTarget Target, WindowStateInfo State, PlacementDisplay Environment, Guid DesktopId);
+
+    internal bool CanSelectReference(WindowTarget source, out Guid desktopId, out string message)
+    {
+        desktopId = Guid.Empty;
+        try
+        {
+            if (!IdentityMatches(source) || !Eligible(source.Handle))
+                throw new InvalidOperationException("源窗口已关闭、身份变化或不符合放置条件，请重新唤起。");
+            desktopId = placementEnvironment.DesktopFor(source.Handle); message = ""; return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+        { message = e.Message; return false; }
+    }
+
+    internal bool TryReadReference(WindowTarget reference, out WindowStateInfo? state, out string message)
+    {
+        state = null;
+        try
+        {
+            if (!IdentityMatches(reference) || !Eligible(reference.Handle))
+                throw new InvalidOperationException("参照窗口已关闭或不符合条件，请重新选择。");
+            state = ReadState(reference);
+            var work = DisplayFor(reference.Handle).WorkArea;
+            var rect = state.Bounds;
+            if (rect.Width < 240 || rect.Height < 160 || rect.X < work.X || rect.Y < work.Y
+                || (long)rect.X + rect.Width > (long)work.X + work.Width || (long)rect.Y + rect.Height > (long)work.Y + work.Height)
+                throw new InvalidOperationException("参照窗口小于 240 × 160 或超出工作区域，请调整它后重新选择。");
+            message = ""; return true;
+        }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+        { state = null; message = e.Message; return false; }
+    }
+
+    private void ValidateReference(WindowTarget source, ReferencePosition reference)
+    {
+        if (source.Handle == reference.Target.Handle)
+            throw new InvalidOperationException("请选择另一扇窗口作为位置参照。");
+        if (!CanSelectReference(source, out var desktopId, out string message)) throw new InvalidOperationException(message);
+        if (desktopId != reference.DesktopId || placementEnvironment.DesktopFor(reference.Target.Handle) != reference.DesktopId)
+            throw new InvalidOperationException("源窗口或参照窗口所在桌面已改变，请重新选择。");
+        if (Native.MonitorFromWindow(reference.Target.Handle, 2) != reference.Environment.Display.Handle
+            || placementEnvironment.Capture(reference.Environment.Display) != reference.Environment
+            || !TryReadReference(reference.Target, out var state, out message) || state != reference.State)
+            throw new InvalidOperationException("参照窗口的位置、大小、状态或显示环境已改变，请重新选择。" + message);
+    }
+
+    public async Task<OperationReport> PlaceAtReferenceAsync(WindowTarget source, WindowTarget reference)
+    {
+        lock (sync)
+        {
+            if (operation != null) return new([], Pending: true);
+            operation = Task.Run(() =>
+            {
+                try
+                {
+                    if (source.Handle == reference.Handle) throw new InvalidOperationException("请选择另一扇窗口作为位置参照。");
+                    if (!TryReadReference(reference, out var state, out string message)) throw new InvalidOperationException(message);
+                    var environment = placementEnvironment.Capture(DisplayFor(reference.Handle));
+                    var position = new ReferencePosition(reference, state!, environment, placementEnvironment.DesktopFor(reference.Handle));
+                    ValidateReference(source, position);
+                    return PlaceCore(source, environment, position.DesktopId, state!.Bounds, () => ValidateReference(source, position));
+                }
+                catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
+                { return new OperationReport([new(source, false, e.Message)], NeedsRefresh: true); }
+            });
+        }
+        return await CollectWithinDeadline();
+    }
+
+    private OperationReport PlaceCore(WindowTarget source, PlacementDisplay destination, Guid desktopId, WindowRect rect, Action validate, bool activateSource = true, PlacementDisplay? sourceEnvironment = null)
     {
         Snapshot? snapshot = null;
         bool mutationStarted = false, confirmedChange = false;
         WindowOutcome outcome;
         try
         {
-            ValidatePlacement(source, positions.Version);
-            if (!placementEnvironment.Activate(source.Handle))
+            validate();
+            if (activateSource && !placementEnvironment.Activate(source.Handle))
                 throw new InvalidOperationException("未取得源窗口前台，未放置；原恢复记录保留。");
-            ValidatePlacement(source, positions.Version);
+            validate();
             if (!placementEnvironment.IsForeground(source.Handle)) throw new InvalidOperationException("源窗口已失去前台，未放置。请重新唤起。");
-            var origin = placementEnvironment.Capture(DisplayFor(source.Handle));
+            var origin = sourceEnvironment ?? placementEnvironment.Capture(DisplayFor(source.Handle));
+            Guard(origin.Display);
             var placement = new Native.Placement { Length = System.Runtime.InteropServices.Marshal.SizeOf<Native.Placement>() };
             if (!Native.GetWindowPlacement(source.Handle, ref placement)) throw new System.ComponentModel.Win32Exception();
-            snapshot = new(source, ReadState(source), placement, origin.Display, positions.Display)
-            { SourceEnvironment = origin, DestinationEnvironment = positions.Environment, DesktopId = positions.DesktopId };
+            snapshot = new(source, ReadState(source), placement, origin.Display, destination.Display)
+            { SourceEnvironment = origin, DestinationEnvironment = destination, DesktopId = desktopId };
             void Guard(DisplayArea expected)
             {
-                ValidatePlacement(source, positions.Version);
+                validate();
                 if (placementEnvironment.Capture(origin.Display) != origin || Native.MonitorFromWindow(source.Handle, 2) != expected.Handle)
                     throw new InvalidOperationException("源窗口或来源显示环境已改变，已停止放置；已改变时可尝试恢复。");
+                if (!activateSource && !placementEnvironment.IsForeground(source.Handle))
+                    throw new InvalidOperationException("源窗口已失去前台，已停止放置；已改变时可尝试恢复。");
             }
             WindowStateInfo Observe(WindowStateInfo state)
             {
@@ -125,19 +199,22 @@ public sealed partial class WindowManager
             if (ReadState(source) != new WindowStateInfo(rect, false))
             {
                 Guard(origin.Display);
-                mutationStarted = true;
-                SetVisibleBounds(source, rect, () => Guard(origin.Display));
+                SetVisibleBounds(source, rect, () =>
+                {
+                    Guard(origin.Display);
+                    mutationStarted = true;
+                });
                 bool reached = WaitFor(source, s => Observe(s) == new WindowStateInfo(rect, false));
                 // Crossing DPI boundaries can change the non-client frame after the first move.
-                if (!reached && IdentityMatches(source) && Native.MonitorFromWindow(source.Handle, 2) == positions.Display.Handle
-                    && origin.Dpi != positions.Environment.Dpi)
+                if (!reached && IdentityMatches(source) && Native.MonitorFromWindow(source.Handle, 2) == destination.Display.Handle
+                    && origin.Dpi != destination.Dpi)
                 {
-                    SetVisibleBounds(source, rect, () => Guard(positions.Display));
+                    SetVisibleBounds(source, rect, () => Guard(destination.Display));
                     reached = WaitFor(source, s => Observe(s) == new WindowStateInfo(rect, false));
                 }
                 if (!reached) throw new InvalidOperationException("未确认达到预期位置；若窗口已改变，可尝试恢复。");
             }
-            ValidatePlacement(source, positions.Version);
+            validate();
             outcome = new(source, true, placementEnvironment.IsForeground(source.Handle) ? "位置已放置，源窗口在前。" : "位置已放置，未保持前台；未再次抢占焦点。");
         }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)

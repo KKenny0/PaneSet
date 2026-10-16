@@ -42,6 +42,12 @@ internal class PlacementEnvironment : IDisposable
     }
     public virtual WindowStateInfo ReadState(nint window) => new(Native.Bounds(window), Native.IsZoomed(window));
     public virtual bool IsForeground(nint window) => Native.GetForegroundWindow() == window;
+    public virtual (Native.Point Position, nint Window) ReadPointer()
+    {
+        if (!Native.GetCursorPos(out var point)) throw new InvalidOperationException("无法读取鼠标位置，请重试。");
+        return (point, WindowAtPoint(point));
+    }
+    public virtual nint WindowAtPoint(Native.Point point) => Native.PointerWindow(point);
     public virtual bool Activate(nint window)
     {
         if (IsForeground(window)) return true;

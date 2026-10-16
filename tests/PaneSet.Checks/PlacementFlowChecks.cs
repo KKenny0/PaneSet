@@ -43,7 +43,8 @@ internal static partial class Program
             var before = targets.Select(manager.ReadState).ToArray();
             var picker = panel.OpenPlacement(targets[3].Handle)!;
             Equal(true, picker != null);
-            Equal(targets[3], picker!.Source);
+            picker!.SelectReferenceMode(false);
+            Equal(targets[3], picker.Source);
             Equal(true, manager.IsPlacementDesktop(new System.Windows.Interop.WindowInteropHelper(picker).Handle, positions.DesktopId));
             Equal(false, ((Button)panel.FindName("ApplyButton")).IsEnabled);
             await panel.ArrangeCurrentScreenAsync(targets[0].Handle, targets);

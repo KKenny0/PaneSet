@@ -43,6 +43,8 @@ internal sealed class SettingsWindow : Window
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 14) });
         body.Children.Add(notice); notice.Text = shortcuts?.Notice ?? "此检查窗口未启用全局注册。";
         body.Children.Add(new TextBlock { Text = "快捷键", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, Margin = new Thickness(0, 14, 0, 8) });
+        body.Children.Add(new TextBlock { Text = "单窗放置：保持要移动的窗口激活，将鼠标指向另一扇窗口后按放置键。被遮挡的位置可从主面板“选择其他位置…”进入。",
+            Foreground = UiPalette.Muted, TextWrapping = TextWrapping.Wrap, LineHeight = 20, Margin = new Thickness(0, 0, 0, 12) });
         if (shortcuts != null) foreach (var action in shortcuts.Actions.ToArray()) body.Children.Add(CreateRow(action));
         body.Children.Add(new TextBlock { Text = "面板内固定键", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, Margin = new Thickness(0, 18, 0, 8) });
         body.Children.Add(new Border { Background = UiPalette.Slate, CornerRadius = new CornerRadius(10), Padding = new Thickness(14), Child =

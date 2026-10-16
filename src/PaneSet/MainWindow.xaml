@@ -16,6 +16,7 @@
     </Style>
     <Style TargetType="Button">
       <Setter Property="Padding" Value="16,8"/><Setter Property="MinHeight" Value="40"/>
+      <Setter Property="HorizontalContentAlignment" Value="Center"/>
       <Setter Property="Background" Value="{DynamicResource Surface}"/><Setter Property="Foreground" Value="{DynamicResource Ink}"/>
       <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
       <Setter Property="RenderTransform"><Setter.Value><ScaleTransform ScaleX="1" ScaleY="1"/></Setter.Value></Setter>
@@ -23,7 +24,7 @@
       <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
         <Border x:Name="Face" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="9" Padding="{TemplateBinding Padding}">
-          <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center"/>
         </Border>
         <ControlTemplate.Triggers>
           <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Face" Property="Opacity" Value="0.86"/></Trigger>
@@ -160,8 +161,8 @@
         <Button x:Name="UndoButton" Grid.Column="1" Content="恢复上次排布" Margin="12,0,0,0" Click="UndoClick" IsEnabled="False" AutomationProperties.Name="恢复上次排布" ToolTip="恢复最近一次实际改变的排布或单窗放置；只保留一步恢复"/>
         <Grid Grid.Column="2" Margin="12,0,4,0">
           <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-          <Button x:Name="PlaceWindowButton" Content="单窗放置" Click="PlaceWindowClick" Padding="12,6" MinHeight="34" IsEnabled="False"
-                  AutomationProperties.Name="单窗放置" ToolTip="将唤起面板前的源窗口放到上次记住的布局位置；原位置窗口留在后面"/>
+          <Button x:Name="PlaceWindowButton" Content="选择其他位置…" Click="PlaceWindowClick" Padding="12,6" MinHeight="34" IsEnabled="False"
+                  AutomationProperties.Name="选择其他位置…" ToolTip="为当前显示的源窗口手动选择参照窗口或上次布局位置；可选择被遮挡的窗口"/>
           <TextBlock x:Name="PlacementSourceText" Grid.Column="1" Text="先从目标窗口唤起面板" Margin="8,0,0,0" FontSize="12"
                      Foreground="{DynamicResource Muted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
         </Grid>

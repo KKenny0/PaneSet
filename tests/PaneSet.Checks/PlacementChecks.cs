@@ -9,11 +9,15 @@ namespace PaneSet.Checks;
 
 internal static partial class Program
 {
-    // Only foreground observations are simulated here; geometry, identity and Undo use real fixture HWNDs.
+    // System observations/faults are injectable; geometry, identity and Undo use real fixture HWNDs.
     private sealed class PlacementObservations : PlacementEnvironment
     {
         public bool AllowActivation = true;
         public nint Foreground;
+        public Func<(Native.Point Position, nint Window)>? PointerObservation;
+        public Func<Native.Point, nint>? PointHitObservation;
+        public override (Native.Point Position, nint Window) ReadPointer() => PointerObservation?.Invoke() ?? base.ReadPointer();
+        public override nint WindowAtPoint(Native.Point point) => PointHitObservation?.Invoke(point) ?? PointerObservation?.Invoke().Window ?? base.WindowAtPoint(point);
         public Action? Activated;
         public Func<PlacementDisplay, PlacementDisplay>? DisplayObservation;
         public Func<nint, Guid, Guid>? DesktopObservation;

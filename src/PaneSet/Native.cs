@@ -34,6 +34,13 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern nint MonitorFromWindow(nint window, uint flags);
     [DllImport("user32.dll")] internal static extern nint MonitorFromPoint(Point point, uint flags);
     [DllImport("user32.dll")] internal static extern bool GetCursorPos(out Point point);
+    [DllImport("user32.dll")] internal static extern nint WindowFromPoint(Point point);
+    [DllImport("user32.dll")] internal static extern nint GetAncestor(nint window, uint flags);
+    [DllImport("user32.dll")] internal static extern nint GetTopWindow(nint window);
+    [DllImport("user32.dll")] internal static extern bool IsWindowEnabled(nint window);
+    [DllImport("user32.dll")] internal static extern bool EnableWindow(nint window, bool enabled);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern nint GetProp(nint window, string name);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern bool SetProp(nint window, string name, nint value);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern bool GetMonitorInfo(nint monitor, ref MonitorInfo info);
     [DllImport("user32.dll", SetLastError = true)] internal static extern bool GetWindowPlacement(nint window, ref Placement placement);
     [DllImport("user32.dll", SetLastError = true)] internal static extern bool SetWindowPlacement(nint window, ref Placement placement);
@@ -56,6 +63,30 @@ internal static class Native
     [DllImport("dwmapi.dll")] internal static extern int DwmUpdateThumbnailProperties(nint thumbnail, ref ThumbnailProperties properties);
     [DllImport("dwmapi.dll")] internal static extern int DwmUnregisterThumbnail(nint thumbnail);
     [DllImport("dwmapi.dll")] internal static extern int DwmFlush();
+    internal const string PlacementFeedbackProperty = "PaneSet.PointerFeedback";
+    internal static nint PointerWindow(Point point)
+    {
+        nint root = GetAncestor(WindowFromPoint(point), 2);
+        if (root == 0 || !IsWindowEnabled(root)) return 0;
+        var visited = new HashSet<nint>();
+        for (nint window = GetTopWindow(0); window != 0 && visited.Count < 4096; window = GetWindow(window, 2))
+        {
+            if (!visited.Add(window)) return 0;
+            if (!IsWindowVisible(window) || IsIconic(window)) continue;
+            GetWindowThreadProcessId(window, out uint pid);
+            if (pid == Environment.ProcessId && GetProp(window, PlacementFeedbackProperty) == 1) continue;
+            if (Cloaked(window, 14, out int cloaked, 4) != 0) return 0;
+            if (cloaked != 0) continue;
+            if (!GetWindowRect(window, out var bounds)) return 0;
+            bool contains = point.X >= bounds.Left && point.Y >= bounds.Top && point.X < bounds.Right && point.Y < bounds.Bottom;
+            if (window == root)
+                return contains && IsWindowEnabled(root) && GetAncestor(WindowFromPoint(point), 2) == root ? root : 0;
+            // Rectangles conservatively block uncertain shaped or transparent covering surfaces.
+            if (contains) return 0;
+        }
+        return 0;
+    }
+
     internal static WindowRect Bounds(nint window)
     {
         if (Frame(window, 9, out var visible, 16) == 0) return visible.Value;

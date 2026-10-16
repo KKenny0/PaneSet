@@ -287,7 +287,7 @@ public sealed partial class WindowManager : IDisposable
         {
             var target = snapshot.Target;
             WindowStateInfo? before = null;
-            bool attempted = false;
+            bool attempted = false, confirmedChange = false;
             try
             {
                 if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份变化，已跳过。");
@@ -304,7 +304,11 @@ public sealed partial class WindowManager : IDisposable
                 attempted = true;
                 if (!Native.SetWindowPlacement(target.Handle, ref placement))
                     throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
-                bool success = WaitFor(target, s => s == snapshot.State);
+                bool success = WaitFor(target, s =>
+                {
+                    if (s != before && IdentityMatches(target)) confirmedChange = true;
+                    return s == snapshot.State;
+                });
                 if (!success && IdentityMatches(target)) remaining.Add(snapshot);
                 outcomes.Add(new(target, success, success ? "已恢复" : "应用限制了恢复，可稍后重试。"));
             }
@@ -317,8 +321,11 @@ public sealed partial class WindowManager : IDisposable
             {
                 if (!single && attempted && before != null)
                 {
-                    try { if (ReadState(target) != before) lock (sync) recentPositions = null; }
+                    // A readable final state wins; otherwise retain earlier identity-validated evidence.
+                    bool changed = confirmedChange;
+                    try { changed = ReadState(target) != before; }
                     catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+                    if (changed) lock (sync) recentPositions = null;
                 }
             }
         }

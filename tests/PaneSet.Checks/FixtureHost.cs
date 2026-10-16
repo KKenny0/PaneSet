@@ -7,6 +7,7 @@ namespace PaneSet.Checks;
 
 internal static class FixtureHost
 {
+    [DllImport("user32.dll")] private static extern bool EnableWindow(nint window, bool enable);
     [DllImport("user32.dll")] private static extern bool SetWindowPos(nint window, nint after, int x, int y, int width, int height, uint flags);
     [StructLayout(LayoutKind.Sequential)] private struct WindowPos { public nint Window, After; public int X, Y, Width, Height; public uint Flags; }
     private static readonly HashSet<int> blocked = [];
@@ -56,6 +57,8 @@ internal static class FixtureHost
                     var parts = command.Split(' ');
                     switch (parts[0])
                     {
+                        case "disable": EnableWindow(new WindowInteropHelper(windows[int.Parse(parts[1])]).Handle, false); break;
+                        case "enable": EnableWindow(new WindowInteropHelper(windows[int.Parse(parts[1])]).Handle, true); break;
                         case "untop": windows[int.Parse(parts[1])].Topmost = false; break;
                         case "top": windows[int.Parse(parts[1])].Topmost = true; break;
                         case "position": SetWindowPos(new WindowInteropHelper(windows[int.Parse(parts[1])]).Handle, 0, int.Parse(parts[2]), int.Parse(parts[3]), 0, 0, 0x15); break;

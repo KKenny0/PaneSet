@@ -38,21 +38,29 @@ internal static partial class Program
                 try { await ClickNativeOwned(fixture, targets[3].Handle, new Native.Point { X = bounds.X + 100, Y = bounds.Y + 12 }); }
                 finally { await fixture.Send("untop 3"); }
                 await Until(() => Native.GetForegroundWindow() == targets[3].Handle);
-                await SendKeys(fixture, targets[3].Handle, 0x11, 0x12, 0x10, 0x87);
-                await Until(() => Application.Current.Windows.OfType<PlacementWindow>().Any());
-                var picker = Application.Current.Windows.OfType<PlacementWindow>().Single();
-                await Until(() => picker.IsReady || !picker.IsVisible);
-                Equal(true, picker.IsReady); Equal(targets[3], picker.Source);
-                await SendKeys(picker, 0x32);
-                await Until(() => !picker.IsVisible && !manager.HasPending);
-                Equal(new WindowStateInfo(positions.Regions[1], false), manager.ReadState(targets[3]));
-                Equal(targets[3].Handle, Native.GetForegroundWindow()); Equal(group, SavedGroup(panel));
-                for (int i = 0; i < 3; i++) Equal(before[i], manager.ReadState(targets[i]));
-                await SendKeys(fixture, targets[3].Handle, 0x11, 0x12, 0x10, 0x87);
-                await Until(() => Application.Current.Windows.OfType<PlacementWindow>().Any(w => w.IsReady));
-                picker = Application.Current.Windows.OfType<PlacementWindow>().Single();
-                await SendKeys(picker, 0x1B); await Until(() => !picker.IsVisible);
-                Equal(new WindowStateInfo(positions.Regions[1], false), manager.ReadState(targets[3]));
+                var point = new Native.Point { X = before[1].Bounds.X + 100, Y = before[1].Bounds.Y + 80 };
+                RequireFixtureTarget(fixture, targets[1].Handle);
+                if (WindowFromPoint(point) != targets[1].Handle || Native.PointerWindow(point) != targets[1].Handle)
+                    throw new Exception("Mouse target is not the fixture-owned window; pointer movement and keyboard injection refused.");
+                RequireInputIdle(); Equal(true, Native.GetCursorPos(out var original));
+                try
+                {
+                    Equal(true, SetCursorPos(point.X, point.Y));
+                    if (WindowFromPoint(point) != targets[1].Handle || Native.PointerWindow(point) != targets[1].Handle)
+                        throw new Exception("Mouse target changed; keyboard injection refused.");
+                    await SendKeys(fixture, targets[3].Handle, 0x11, 0x12, 0x10, 0x87);
+                    await Until(() => manager.HasUndo && !manager.HasPending && manager.ReadState(targets[3]).Bounds == before[1].Bounds);
+                    Equal(false, Application.Current.Windows.OfType<PlacementWindow>().Any());
+                    Equal(new WindowStateInfo(before[1].Bounds, false), manager.ReadState(targets[3]));
+                    Equal(targets[3].Handle, Native.GetForegroundWindow()); Equal(group, SavedGroup(panel));
+                    for (int i = 0; i < 3; i++) Equal(before[i], manager.ReadState(targets[i]));
+                    // The placed source now covers the same point: a second trigger refuses itself.
+                    await SendKeys(fixture, targets[3].Handle, 0x11, 0x12, 0x10, 0x87);
+                    await Until(() => ((TextBlock)panel.FindName("StatusText")).Text.Contains("鼠标"));
+                    Equal(false, Application.Current.Windows.OfType<PlacementWindow>().Any());
+                    Equal(new WindowStateInfo(before[1].Bounds, false), manager.ReadState(targets[3]));
+                }
+                finally { SetCursorPos(original.X, original.Y); }
                 PlacementSucceeded(await PlacementResult(manager, manager.UndoAsync()));
                 Equal(before[3], manager.ReadState(targets[3])); Equal(positions.Version, manager.RecentPositions!.Version);
             }
