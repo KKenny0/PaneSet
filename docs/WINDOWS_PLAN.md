@@ -12,6 +12,8 @@ PaneSet 使用 C#、.NET 10、WPF 和 Win32。初次两窗交付之后，用户�
 | PanelShortcuts | 独立注册四个全局动作、接收 WM_HOTKEY、绑定事务、实际状态与退出释放。 |
 | ShortcutSettings / SettingsWindow | 版本化 JSON、临时文件原子替换，以及全局绑定编辑和局部作用范围说明。 |
 | OverviewSelection | B 总览的固定候选、有序选组、身份刷新、搜索匹配、编号及布局确认资格；只接收观察数据，不调用系统接口。 |
+| DragPlacementMonitor / DragPlacementStateMachine / DragPlacementOverlay | 拖动投放：系统移动循环观察（WinEvent 界定会话、会话内低级键鼠钩子记录 Esc/右键/左键释放、轮询辅助键与指针）、纯状态机决策（进入/命中/换模板/取消/提交）、置顶分层点击穿透的纯视觉层；不持有 Undo。 |
+| TrayIcon | Shell_NotifyIcon 托盘图标、TaskbarCreated 重挂与退出清理；托盘可用时收起/关闭/最小化都隐藏主窗口，失败回退任务栏。 |
 | QuickSelectWindow / WindowThumbnail | 本屏不透明 WPF 总览、输入与状态呈现、DWM 内容预览及裁切释放、焦点与会话生命周期；不持有 Undo。 |
 | App | 捕获启动前的前台窗口，使用会话内命名互斥量与事件保留一个进程，重复启动唤起已有面板。 |
 | ThemedChrome / UiPalette | 主面板和设置窗口共用可随应用模式变色的标题栏与控件颜色；WindowChrome 保留窗口拖动、缩放和系统菜单行为。 |
@@ -65,6 +67,8 @@ MainWindow 私有保存一组成功排布的完整 WindowTarget 身份、相对�
 
 默认绑定为 Ctrl+Alt+Space 打开/收起、Ctrl+Alt+Z 恢复、Ctrl+Alt+1 本屏全部排布、Ctrl+Alt+2 本屏快速选窗。`RegisterHotKey` 附加 `MOD_NOREPEAT`，实际修饰键从配置读取。四个注册独立报告，一项冲突不阻止其他动作；设置区分保存值与实际状态，任务栏与按钮继续可用。
 
+配置新增可选的 `dragModifiers`（拖动投放辅助键掩码，默认 Shift）；旧版本写入的 `placeWindow` 动作键在加载时逐字段解析并跳过，不再导致整份配置回退默认。
+
 配置为 `%LOCALAPPDATA%/PaneSet/settings.json`，版本 1，缺失动作使用默认，显式 null 禁用；未知版本/损坏内容反馈并使用默认，不在主动保存前覆盖。修改时验证格式与自身重复，先注册暂存新组合，保留旧组合，再以同目录临时文件及原子替换保存。保存成功才发布并释放旧注册；注册/保存失败清理暂存键、保留旧绑定。默认恢复使用相同事务；清理异常显示诊断，退出仍释放持有的注册。只持久化快捷键。
 
 全局唤起先捕获当前前台窗口，再刷新屏幕和候选列表；面板已经有焦点时收起。操作待完成时唤起只显示反馈，不重新收集选择或改变目标。明确退出时 `UnregisterHotKey` 释放注册。
@@ -86,6 +90,14 @@ WindowThumbnail 只持有 DWM 绘制关系；Register、QuerySourceSize、Update
 覆盖层消费点击，预览不修改目标几何。Tab/Space 选择，Ctrl+F 搜索，精确 Alt+1/2/3 改预览；Enter 确认，布局下拉框打开时第一次 Enter 只接受选项。搜索框内 Enter 不提交，按钮焦点上的 Enter 执行该按钮，避免顺序调整误排布。确认先关闭覆盖层，再调用共享本屏执行；Esc 与外部失焦结束未确认选择并保留 Undo。初次显示做一次普通激活请求；实际前台和键盘焦点未取得则退出，反馈用 `ShowWindow(SW_SHOWNOACTIVATE)` 显示主面板。刷新和失焦判断不反复请求前台；内部拥有的弹出控件属于同一会话。
 
 B 选窗、设置和原生 pending 互斥，所有成功记录与恢复快照仍由主面板和 WindowManager 协调。界面绘制与输入检查不代表混合 DPI 或第三方窗口实机验收。
+
+## 拖动投放与托盘常驻
+
+拖动投放的执行链：WinEvent 观察移动/缩放循环开始与结束，会话起点捕获拖动前 `WINDOWPLACEMENT` 与显示环境；会话内安装低级键盘/鼠标钩子（仅观察，不注入，忽略注入事件）记录 Esc、右键与左键释放，15ms 轮询辅助键（与配置掩码精确相等，额外的修饰键不触发）与指针。分区由布局引擎在指针所在屏现算；提交判定要求观察到左键释放、结束时左键已松开、辅助键仍按住、命中分区、无取消且非缩放，不确定一律不投放。执行复用单窗 PlaceCore 并注入拖动起点的恢复快照，恢复回到拖动前。
+
+托盘图标取 exe 内嵌图标组，监听 TaskbarCreated 在 Explorer 重启后重挂；主窗口隐藏时不占任务栏按钮，明确退出删除图标。旧指针参照放置、位置图选择器与最近布局位置记录已移除。
+
+待实机验证的边界：WinEvent 回调延迟下拖动起点快照的准确度；屏幕边缘分区松手与 Windows 自身贴边的竞争；覆盖层在第三方置顶窗口之上的可见性；混合 DPI 跨屏分区与恢复。
 
 ## 验收与环境
 

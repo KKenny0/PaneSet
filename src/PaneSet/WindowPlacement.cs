@@ -1,164 +1,74 @@
 namespace PaneSet;
 
+/// The pre-drag state of a dragged window, captured when its move loop begins.
+internal sealed record DragSessionStart(WindowTarget Target, WindowStateInfo State, Native.Placement Placement,
+    PlacementDisplay SourceEnvironment, Guid DesktopId);
+
 public sealed partial class WindowManager
 {
     private readonly PlacementEnvironment placementEnvironment;
-    private LayoutPositions? recentPositions;
-    private long positionsVersion;
     private bool singleWindowUndo;
-    public LayoutPositions? RecentPositions { get { lock (sync) return recentPositions; } }
 
-    private LayoutPositions? CapturePositions(WindowTarget[] targets, DisplayArea display, WindowRect[] layout)
+    /// Captures the state a dragged window had when its move loop began, so a placement can be
+    /// restored to the pre-drag geometry even though execution happens after the drop.
+    internal bool TryBeginDragSession(nint window, out DragSessionStart? session, out string message)
     {
+        session = null; message = "";
         try
         {
-            var described = ListDisplays().FirstOrDefault(d => d.Handle == display.Handle);
-            if (described == null) return null;
-            var environment = placementEnvironment.Capture(display with { Name = described.Name });
-            if (environment.Display.WorkArea != display.WorkArea) return null;
-            var desktopId = placementEnvironment.DesktopFor(targets[0].Handle);
-            if (targets.Any(t => !IdentityMatches(t) || placementEnvironment.DesktopFor(t.Handle) != desktopId)) return null;
-            return new(Interlocked.Increment(ref positionsVersion), environment, desktopId, Array.AsReadOnly(layout.ToArray()));
+            Native.GetWindowThreadProcessId(window, out uint pid);
+            if (pid == Environment.ProcessId || !Eligible(window)) return false;
+            var target = ListWindows().FirstOrDefault(t => t.Handle == window);
+            if (target == null) return false;
+            var state = ReadState(target);
+            var placement = new Native.Placement { Length = System.Runtime.InteropServices.Marshal.SizeOf<Native.Placement>() };
+            if (!Native.GetWindowPlacement(window, ref placement)) throw new System.ComponentModel.Win32Exception();
+            var environment = placementEnvironment.Capture(DisplayFor(window));
+            session = new(target, state, placement, environment, placementEnvironment.DesktopFor(window));
+            return true;
         }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { return null; }
-    }
-
-    private string PublishPositions(LayoutPositions? positions, WindowTarget[] targets)
-    {
-        try
-        {
-            if (positions == null || placementEnvironment.Capture(positions.Display) != positions.Environment
-                || targets.Any(t => !IdentityMatches(t) || placementEnvironment.DesktopFor(t.Handle) != positions.DesktopId))
-                throw new InvalidOperationException();
-            lock (sync) if (!disposed) recentPositions = positions;
-            return "";
-        }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-        { return "本次排布已完成，但位置未能记住；已有位置仍来自此前成功记录，使用前会重新校验环境。"; }
-    }
-
-    private LayoutPositions ValidatePlacement(WindowTarget source, long version)
-    {
-        var positions = RecentPositions ?? throw new InvalidOperationException("先用 PaneSet 排布一次窗口，再使用单窗放置。");
-        if (positions.Version != version) throw new InvalidOperationException("布局位置记录已改变，请重新打开单窗放置。");
-        if (placementEnvironment.Capture(positions.Display) != positions.Environment)
-            throw new InvalidOperationException("目标屏幕、工作区域或缩放已改变，请重新整组排布。");
-        if (!IdentityMatches(source) || !Eligible(source.Handle))
-            throw new InvalidOperationException("源窗口已关闭、身份变化或不符合放置条件，请从目标窗口重新唤起。");
-        if (placementEnvironment.DesktopFor(source.Handle) != positions.DesktopId)
-            throw new InvalidOperationException("布局位置在另一虚拟桌面，请返回原桌面或重新整组排布。");
-        return positions;
-    }
-
-    internal bool IsPlacementDesktop(nint window, Guid id)
-    {
-        try { return placementEnvironment.DesktopFor(window) == id; }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
-    }
-
-    public bool CanPlace(WindowTarget source, long version, out string message)
-    {
-        try { ValidatePlacement(source, version); message = ""; return true; }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
         { message = e.Message; return false; }
     }
 
-    public async Task<OperationReport> PlaceAsync(WindowTarget source, long version, int index)
+    internal bool IdentityAlive(DragSessionStart session)
+    {
+        try { return IdentityMatches(session.Target) && Eligible(session.Target.Handle); }
+        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
+    }
+
+    internal async Task<OperationReport> PlaceDraggedAsync(DragSessionStart session, WindowRect zone, DisplayArea destination)
     {
         lock (sync) if (operation != null) return new([], Pending: true);
         try
         {
-            var positions = RecentPositions ?? throw new InvalidOperationException("先用 PaneSet 排布一次窗口，再使用单窗放置。");
-            if (positions.Version != version) throw new InvalidOperationException("布局位置记录已改变，请重新打开单窗放置。");
-            if (index < 0 || index >= positions.Regions.Count) throw new InvalidOperationException("布局位置编号无效，请重新选择。");
-            var rect = positions.Regions[index];
-            var work = positions.Display.WorkArea;
-            if (rect.Width < 240 || rect.Height < 160 || rect.X < work.X || rect.Y < work.Y
-                || (long)rect.X + rect.Width > (long)work.X + work.Width || (long)rect.Y + rect.Height > (long)work.Y + work.Height)
-                throw new InvalidOperationException("布局位置超出原工作区域，请重新整组排布。");
+            if (!IdentityMatches(session.Target) || !Eligible(session.Target.Handle))
+                throw new InvalidOperationException("拖动的窗口已关闭、身份变化或不符合放置条件，本次未投放。");
+            var destinationEnvironment = placementEnvironment.Capture(destination);
+            var desktopId = placementEnvironment.DesktopFor(session.Target.Handle);
+            if (desktopId != session.DesktopId)
+                throw new InvalidOperationException("拖动的窗口所在桌面已改变，本次未投放。");
+            void Validate()
+            {
+                if (!IdentityMatches(session.Target) || !Eligible(session.Target.Handle))
+                    throw new InvalidOperationException("拖动的窗口已关闭、身份变化或不符合放置条件，已停止投放。");
+                if (placementEnvironment.DesktopFor(session.Target.Handle) != desktopId)
+                    throw new InvalidOperationException("拖动的窗口所在桌面已改变，已停止投放。");
+            }
             lock (sync)
             {
                 if (operation != null) return new([], Pending: true);
-                operation = Task.Run(() => PlaceCore(source, positions.Environment, positions.DesktopId, rect,
-                    () => ValidatePlacement(source, positions.Version)));
+                operation = Task.Run(() => PlaceCore(session.Target, destinationEnvironment, desktopId, zone, Validate,
+                    restoreSession: session));
             }
         }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-        { return new([new(source, false, e.Message)], NeedsRefresh: true); }
+        { return new([new(session.Target, false, e.Message)], NeedsRefresh: true); }
         return await CollectWithinDeadline();
     }
 
-    internal sealed record ReferencePosition(WindowTarget Target, WindowStateInfo State, PlacementDisplay Environment, Guid DesktopId);
-
-    internal bool CanSelectReference(WindowTarget source, out Guid desktopId, out string message)
-    {
-        desktopId = Guid.Empty;
-        try
-        {
-            if (!IdentityMatches(source) || !Eligible(source.Handle))
-                throw new InvalidOperationException("源窗口已关闭、身份变化或不符合放置条件，请重新唤起。");
-            desktopId = placementEnvironment.DesktopFor(source.Handle); message = ""; return true;
-        }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-        { message = e.Message; return false; }
-    }
-
-    internal bool TryReadReference(WindowTarget reference, out WindowStateInfo? state, out string message)
-    {
-        state = null;
-        try
-        {
-            if (!IdentityMatches(reference) || !Eligible(reference.Handle))
-                throw new InvalidOperationException("参照窗口已关闭或不符合条件，请重新选择。");
-            state = ReadState(reference);
-            var work = DisplayFor(reference.Handle).WorkArea;
-            var rect = state.Bounds;
-            if (rect.Width < 240 || rect.Height < 160 || rect.X < work.X || rect.Y < work.Y
-                || (long)rect.X + rect.Width > (long)work.X + work.Width || (long)rect.Y + rect.Height > (long)work.Y + work.Height)
-                throw new InvalidOperationException("参照窗口小于 240 × 160 或超出工作区域，请调整它后重新选择。");
-            message = ""; return true;
-        }
-        catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-        { state = null; message = e.Message; return false; }
-    }
-
-    private void ValidateReference(WindowTarget source, ReferencePosition reference)
-    {
-        if (source.Handle == reference.Target.Handle)
-            throw new InvalidOperationException("请选择另一扇窗口作为位置参照。");
-        if (!CanSelectReference(source, out var desktopId, out string message)) throw new InvalidOperationException(message);
-        if (desktopId != reference.DesktopId || placementEnvironment.DesktopFor(reference.Target.Handle) != reference.DesktopId)
-            throw new InvalidOperationException("源窗口或参照窗口所在桌面已改变，请重新选择。");
-        if (Native.MonitorFromWindow(reference.Target.Handle, 2) != reference.Environment.Display.Handle
-            || placementEnvironment.Capture(reference.Environment.Display) != reference.Environment
-            || !TryReadReference(reference.Target, out var state, out message) || state != reference.State)
-            throw new InvalidOperationException("参照窗口的位置、大小、状态或显示环境已改变，请重新选择。" + message);
-    }
-
-    public async Task<OperationReport> PlaceAtReferenceAsync(WindowTarget source, WindowTarget reference)
-    {
-        lock (sync)
-        {
-            if (operation != null) return new([], Pending: true);
-            operation = Task.Run(() =>
-            {
-                try
-                {
-                    if (source.Handle == reference.Handle) throw new InvalidOperationException("请选择另一扇窗口作为位置参照。");
-                    if (!TryReadReference(reference, out var state, out string message)) throw new InvalidOperationException(message);
-                    var environment = placementEnvironment.Capture(DisplayFor(reference.Handle));
-                    var position = new ReferencePosition(reference, state!, environment, placementEnvironment.DesktopFor(reference.Handle));
-                    ValidateReference(source, position);
-                    return PlaceCore(source, environment, position.DesktopId, state!.Bounds, () => ValidateReference(source, position));
-                }
-                catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-                { return new OperationReport([new(source, false, e.Message)], NeedsRefresh: true); }
-            });
-        }
-        return await CollectWithinDeadline();
-    }
-
-    private OperationReport PlaceCore(WindowTarget source, PlacementDisplay destination, Guid desktopId, WindowRect rect, Action validate, bool activateSource = true, PlacementDisplay? sourceEnvironment = null)
+    private OperationReport PlaceCore(WindowTarget source, PlacementDisplay destination, Guid desktopId, WindowRect rect,
+        Action validate, bool activateSource = true, PlacementDisplay? sourceEnvironment = null, DragSessionStart? restoreSession = null)
     {
         Snapshot? snapshot = null;
         bool mutationStarted = false, confirmedChange = false;
@@ -174,8 +84,12 @@ public sealed partial class WindowManager
             Guard(origin.Display);
             var placement = new Native.Placement { Length = System.Runtime.InteropServices.Marshal.SizeOf<Native.Placement>() };
             if (!Native.GetWindowPlacement(source.Handle, ref placement)) throw new System.ComponentModel.Win32Exception();
-            snapshot = new(source, ReadState(source), placement, origin.Display, destination.Display)
-            { SourceEnvironment = origin, DestinationEnvironment = destination, DesktopId = desktopId };
+            // A drag placement restores the state captured when the drag began, not the drop position.
+            var restoreState = restoreSession?.State ?? ReadState(source);
+            var restorePlacement = restoreSession?.Placement ?? placement;
+            var restoreSource = restoreSession?.SourceEnvironment ?? origin;
+            snapshot = new(source, restoreState, restorePlacement, restoreSource.Display, destination.Display)
+            { SourceEnvironment = restoreSource, DestinationEnvironment = destination, DesktopId = desktopId };
             void Guard(DisplayArea expected)
             {
                 validate();
@@ -190,7 +104,7 @@ public sealed partial class WindowManager
                 return state;
             }
             Guard(origin.Display);
-            if (snapshot.State.Maximized)
+            if (ReadState(source).Maximized)
             {
                 mutationStarted = true;
                 Native.ShowWindow(source.Handle, 4);
@@ -215,7 +129,7 @@ public sealed partial class WindowManager
                 if (!reached) throw new InvalidOperationException("未确认达到预期位置；若窗口已改变，可尝试恢复。");
             }
             validate();
-            outcome = new(source, true, placementEnvironment.IsForeground(source.Handle) ? "位置已放置，源窗口在前。" : "位置已放置，未保持前台；未再次抢占焦点。");
+            outcome = new(source, true, placementEnvironment.IsForeground(source.Handle) ? "已放入分区，源窗口在前。" : "已放入分区，未保持前台；未再次抢占焦点。");
         }
         catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
         { outcome = new(source, false, e.Message); }

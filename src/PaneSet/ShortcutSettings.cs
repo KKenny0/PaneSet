@@ -5,7 +5,7 @@ using System.Windows.Input;
 
 namespace PaneSet;
 
-internal enum ShortcutAction { OpenPanel = 1, Restore = 2, ArrangeScreen = 3, SelectScreen = 4, PlaceWindow = 5 }
+internal enum ShortcutAction { OpenPanel = 1, Restore = 2, ArrangeScreen = 3, SelectScreen = 4 }
 internal enum AppearanceMode { System, Light, Dark }
 internal sealed record ShortcutBinding(uint Modifiers, uint Key)
 {
@@ -21,9 +21,11 @@ internal sealed record ShortcutBinding(uint Modifiers, uint Key)
 
 internal sealed class ShortcutSettings
 {
+    public const uint DefaultDragModifiers = 4; // Shift
     public int Version { get; set; } = 1;
     public Dictionary<ShortcutAction, ShortcutBinding?> Shortcuts { get; set; } = [];
     public AppearanceMode Theme { get; set; } = AppearanceMode.System;
+    public uint DragModifiers { get; set; } = DefaultDragModifiers;
     internal static readonly JsonSerializerOptions JsonOptions = new() {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase, WriteIndented = true,
         Converters = { new JsonStringEnumConverter() }
@@ -31,7 +33,7 @@ internal sealed class ShortcutSettings
     public static string DefaultPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PaneSet", "settings.json");
     public static ShortcutBinding Default(ShortcutAction action) => new(3, action switch {
         ShortcutAction.OpenPanel => 0x20, ShortcutAction.Restore => 0x5A,
-        ShortcutAction.ArrangeScreen => 0x31, ShortcutAction.SelectScreen => 0x32, ShortcutAction.PlaceWindow => 0x33,
+        ShortcutAction.ArrangeScreen => 0x31, ShortcutAction.SelectScreen => 0x32,
         _ => throw new ArgumentOutOfRangeException(nameof(action)) });
     public ShortcutBinding? For(ShortcutAction action) => Shortcuts.TryGetValue(action, out var value) ? value : Default(action);
     public static ShortcutSettings Load(string path, out string notice)
@@ -40,20 +42,43 @@ internal sealed class ShortcutSettings
         try
         {
             if (!File.Exists(path)) return new();
-            var settings = JsonSerializer.Deserialize<ShortcutSettings>(File.ReadAllText(path), JsonOptions);
-            if (settings == null || settings.Version != 1 || settings.Shortcuts == null || !Enum.IsDefined(settings.Theme)
-                || settings.Shortcuts.Values.Any(b => b != null && !b.Valid)) throw new InvalidDataException("配置格式或版本无效");
-            if (!settings.Shortcuts.ContainsKey(ShortcutAction.PlaceWindow)
-                && Enum.GetValues<ShortcutAction>().Any(a => a != ShortcutAction.PlaceWindow && settings.For(a) == Default(ShortcutAction.PlaceWindow)))
+            // Parsed field by field so a removed action key (for example placeWindow from older
+            // builds) degrades to that entry alone instead of invalidating the whole file.
+            using var document = JsonDocument.Parse(File.ReadAllText(path),
+                new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("version", out var version)
+                || version.ValueKind != JsonValueKind.Number || version.GetInt32() != 1)
+                throw new InvalidDataException("配置格式或版本无效");
+            var settings = new ShortcutSettings();
+            if (root.TryGetProperty("theme", out var theme))
+                settings.Theme = theme.ValueKind == JsonValueKind.String
+                    && Enum.TryParse<AppearanceMode>(theme.GetString(), out var mode) && Enum.IsDefined(mode)
+                    ? mode : throw new InvalidDataException("配置格式或版本无效");
+            if (root.TryGetProperty("dragModifiers", out var modifiers))
             {
-                settings.Shortcuts[ShortcutAction.PlaceWindow] = null;
-                notice = "单窗放置默认组合已用于旧动作，已暂时禁用单窗放置快捷键；可在设置中改绑，原绑定与外观保留。";
+                if (modifiers.ValueKind != JsonValueKind.Number) throw new InvalidDataException("拖动投放辅助键无效");
+                settings.DragModifiers = modifiers.GetUInt32();
             }
+            if (settings.DragModifiers == 0 || settings.DragModifiers > 15) throw new InvalidDataException("拖动投放辅助键无效");
+            if (root.TryGetProperty("shortcuts", out var shortcuts) && shortcuts.ValueKind == JsonValueKind.Object)
+                foreach (var entry in shortcuts.EnumerateObject())
+                {
+                    if (!Enum.TryParse<ShortcutAction>(entry.Name, true, out var action) || !Enum.IsDefined(action)) continue;
+                    settings.Shortcuts[action] = entry.Value.ValueKind switch
+                    {
+                        JsonValueKind.Null => null,
+                        JsonValueKind.Object => new(entry.Value.GetProperty("modifiers").GetUInt32(),
+                            entry.Value.GetProperty("key").GetUInt32()),
+                        _ => throw new InvalidDataException("配置格式或版本无效"),
+                    };
+                }
+            if (settings.Shortcuts.Values.Any(b => b != null && !b.Valid)) throw new InvalidDataException("配置格式或版本无效");
             var bindings = Enum.GetValues<ShortcutAction>().Select(settings.For).Where(b => b != null).ToArray();
             if (bindings.Distinct().Count() != bindings.Length) throw new InvalidDataException("配置包含重复组合");
             return settings;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or InvalidDataException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or JsonException or NotSupportedException or InvalidDataException or FormatException)
         { notice = "无法读取快捷键配置，正在使用默认值；主动保存后才覆盖原文件。" + e.Message; return new(); }
     }
     // A return value is a cleanup notice after commit; failures throw.

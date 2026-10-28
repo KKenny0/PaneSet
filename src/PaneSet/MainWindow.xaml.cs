@@ -24,17 +24,20 @@ public partial class MainWindow : Window
     private AppearanceMode themeMode;
     private PanelShortcuts? shortcuts;
     private SettingsWindow? settingsWindow;
+    private TrayIcon? tray;
     private QuickSelectWindow? selectionWindow;
     private ArrangementKind quickLayout = ArrangementKind.Automatic;
     private bool updating, busy, arranging, exitRequested, layoutUsable, closed;
+    private readonly bool trayEnabled;
     private sealed record WindowGroup(WindowTarget[] Targets, DisplayArea Destination, ArrangementKind Layout);
     private WindowGroup? recentGroup, requestedGroup;
     private bool? compactLayout;
     private ArrangementKind Kind => LayoutPicker.SelectedItem is ComboBoxItem { Tag: ArrangementKind kind } ? kind : ArrangementKind.Automatic;
 
-    public MainWindow(WindowManager manager, DisplayArea display, IReadOnlyList<WindowTarget> candidates, nint foreground = 0, bool enableShortcuts = true, string? settingsPath = null)
+    public MainWindow(WindowManager manager, DisplayArea display, IReadOnlyList<WindowTarget> candidates, nint foreground = 0, bool enableShortcuts = true, string? settingsPath = null, bool? enableTray = null)
     {
         this.manager = manager; this.display = display;
+        trayEnabled = enableTray ?? enableShortcuts;
         this.settingsPath = settingsPath ?? ShortcutSettings.DefaultPath;
         themeMode = ShortcutSettings.Load(this.settingsPath, out _).Theme;
         ThemeSupport.EnsureControls();
@@ -47,8 +50,7 @@ public partial class MainWindow : Window
         WindowList.ItemsSource = view;
         LoadDisplays(display.Handle);
         SetCandidates(candidates, foreground);
-        CapturePlacementSource(candidates, foreground);
-        WatchPlacementSource();
+        if (enableShortcuts) StartDragPlacementMonitor();
         timer = new DispatcherTimer(TimeSpan.FromMilliseconds(200), DispatcherPriority.Background, async (_, _) =>
         {
             if (!busy && manager.CanCollect)
@@ -67,25 +69,26 @@ public partial class MainWindow : Window
             if (enableShortcuts) shortcuts = new(new WindowInteropHelper(this).Handle, DispatchShortcut,
                 settingsPath, Enum.GetValues<ShortcutAction>());
             UpdateShortcutHint();
+            CreateTray();
             PlaceOnDisplay();
         };
         Closing += (_, e) =>
         {
-            if (!exitRequested) { e.Cancel = true; WindowState = System.Windows.WindowState.Minimized; return; }
+            if (!exitRequested) { e.Cancel = true; CollapseToTray(); return; }
             if ((busy || manager.HasPending) && MessageBox.Show(this,
                 "目标窗口仍未响应。退出后无法恢复这次排布，目标稍后仍可能被移动。是否退出？",
                 "退出 PaneSet", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
             { e.Cancel = true; exitRequested = false; }
         };
         SizeChanged += (_, _) => UpdateResponsiveLayout();
-        Closed += (_, _) => { closed = true; placementFeedback?.Dispose(); placementSource = null; placementWindow?.Close(); selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
+        Closed += (_, _) => { closed = true; dragFeedback?.Dispose(); dragMonitor?.Dispose(); tray?.Dispose(); selectionWindow?.Close(); settingsWindow?.Close(); recentGroup = requestedGroup = null; shortcuts?.Dispose(); timer.Stop(); themeTimer.Stop(); manager.Dispose(); };
         PreviewKeyDown += (_, e) =>
         {
             var key = e.Key == Key.System ? e.SystemKey : e.Key;
             if (TrySelectLayout(key, Keyboard.Modifiers)) e.Handled = true;
             else if (key == Key.F && Keyboard.Modifiers == ModifierKeys.Control) { SearchBox.Focus(); SearchBox.SelectAll(); e.Handled = true; }
             else if (key == Key.S && Keyboard.Modifiers == ModifierKeys.Alt && SwapButton.IsEnabled) { SwapClick(this, new()); e.Handled = true; }
-            else if (key == Key.Escape) { WindowState = System.Windows.WindowState.Minimized; e.Handled = true; }
+            else if (key == Key.Escape) { CollapseToTray(); e.Handled = true; }
         };
         StatusText.Text = "可选择各屏幕上被遮挡的窗口。收起后仍在运行，退出会清除恢复记录。";
     }
@@ -173,12 +176,12 @@ public partial class MainWindow : Window
 
     public void OpenForForeground(nint foreground, bool toggle = true)
     {
-        if (placementWindow != null) { placementWindow.Activate(); return; }
         if (selectionWindow != null) { selectionWindow.Activate(); return; }
         if (settingsWindow != null) { settingsWindow.Activate(); return; }
         var own = new WindowInteropHelper(this).Handle;
         if (toggle && foreground == own && WindowState != System.Windows.WindowState.Minimized)
-        { WindowState = System.Windows.WindowState.Minimized; return; }
+        { CollapseToTray(); return; }
+        if (!IsVisible) Show();
         if (foreground != own && !busy && !manager.HasPending)
         {
             try
@@ -187,7 +190,6 @@ public partial class MainWindow : Window
                 LoadDisplays(WindowManager.DisplayFor(candidates.Any(t => t.Handle == foreground) ? foreground : 0).Handle);
                 SearchBox.Clear();
                 SetCandidates(candidates, foreground);
-                CapturePlacementSource(candidates, foreground);
                 PlaceOnDisplay();
                 StatusText.Text = "已选当前窗口。继续选择窗口，确认目标屏幕后按 Enter。";
             }
@@ -219,7 +221,6 @@ public partial class MainWindow : Window
     {
         if (closed) return;
         bool available = !busy && !manager.HasPending && !Picking && settingsWindow == null;
-        PlaceWindowButton.IsEnabled = available && placementSource != null;
         SettingsButton.IsEnabled = available;
         ArrangeScreenButton.IsEnabled = QuickScreenButton.IsEnabled = available;
         RecentButton.IsEnabled = available && recentGroup != null;
@@ -355,7 +356,7 @@ public partial class MainWindow : Window
     private async void ArrangeScreenClick(object sender, RoutedEventArgs e) => await ArrangeCurrentScreenAsync(WindowManager.Foreground);
     internal QuickSelectWindow? OpenQuickSelection(nint foreground, IReadOnlyList<WindowTarget>? candidates = null)
     {
-        if (closed || busy || manager.HasPending || settingsWindow != null || placementWindow != null) return null;
+        if (closed || busy || manager.HasPending || settingsWindow != null) return null;
         selectionWindow?.Close();
         try
         {
@@ -364,7 +365,7 @@ public partial class MainWindow : Window
             var scoped = candidates.Where(t => manager.TryReadOnScreen(t, destination, out _)).ToArray();
             var picker = new QuickSelectWindow(this, manager, destination, scoped, foreground, quickLayout);
             selectionWindow = picker; UpdateControls();
-            WindowState = System.Windows.WindowState.Minimized;
+            CollapseToTray();
             picker.Completed += result =>
             {
                 if (selectionWindow == picker) selectionWindow = null;
@@ -409,33 +410,35 @@ public partial class MainWindow : Window
         if (closed) return;
         if (report.Pending)
         {
-            StatusText.Text = "正在等待目标窗口响应，完成前暂停排布和恢复。";
-            if (pointerPlacing) ShowPointerFeedback(null, StatusText.Text);
+            if (dragPlacing) ShowDragNote("正在等待目标窗口响应，完成前不能再次投放。");
+            else StatusText.Text = "正在等待目标窗口响应，完成前暂停排布和恢复。";
             return;
         }
         if (report.Success && requestedGroup != null) recentGroup = requestedGroup;
         requestedGroup = null;
         StatusText.Text = string.Join("\n", report.Windows.Select(w => w.Target.Title + "：" + w.Message))
             + (report.Notice.Length > 0 ? "\n" + report.Notice : "");
-        if (pointerPlacing)
+        if (dragPlacing)
         {
-            placing = pointerPlacing = false;
-            ShowPointerFeedback(report.Success && report.Notice.Length == 0 ? pointerTarget : null,
-                string.Join(" ", report.Windows.Select(w => w.Message)) + (report.Notice.Length > 0 ? " " + report.Notice : ""));
-        }
-        else if (placing)
-        {
-            placing = false;
-            if (!report.Success) Native.ShowWindow(new WindowInteropHelper(this).Handle, 4);
+            dragPlacing = false;
+            if (report.Success && report.Notice.Length == 0) ShowDragFeedback(dragZone);
+            else if (!report.Success || report.Notice.Length > 0)
+                ShowDragNote(string.Join(" ", report.Windows.Select(w => w.Message)) + (report.Notice.Length > 0 ? " " + report.Notice : ""));
         }
         else if (report.Success && arranging)
         {
-            StatusText.Text = "已排布。从任务栏或设置中的面板键打开 PaneSet，使用恢复键或按钮恢复。" + report.Notice;
-            WindowState = System.Windows.WindowState.Minimized;
+            StatusText.Text = "已排布。从托盘图标或快捷键打开 PaneSet，使用恢复键或按钮恢复。" + report.Notice;
+            CollapseToTray();
         }
         else if (!report.Success) { WindowState = System.Windows.WindowState.Normal; Activate(); }
     }
-    private void UpdateShortcutHint() => ShortcutText.Text = (shortcuts?.Hint ?? "快捷键未启用") + " · 放置键：指向另一扇窗口 · Enter 排布 · Alt+S 轮换";
+    private void UpdateShortcutHint() => ShortcutText.Text = (shortcuts?.Hint ?? "快捷键未启用") + $" · 按住 {ModifierLabel()} 拖动窗口投放 · Enter 排布 · Alt+S 轮换";
+    private string ModifierLabel()
+    {
+        uint mask = shortcuts?.DragModifiers ?? ShortcutSettings.DefaultDragModifiers;
+        return string.Join("+", new[] { (mask & 1) != 0 ? "Alt" : null, (mask & 2) != 0 ? "Ctrl" : null,
+            (mask & 4) != 0 ? "Shift" : null, (mask & 8) != 0 ? "Win" : null }.Where(s => s != null));
+    }
     private void ApplyTheme()
     {
         bool dark = ThemeSupport.ResolveDark(themeMode);
@@ -476,9 +479,56 @@ public partial class MainWindow : Window
         try { settingsWindow.ShowDialog(); }
         finally { settingsWindow = null; UpdateShortcutHint(); UpdateControls(); }
     }
-    private void CloseClick(object sender, RoutedEventArgs e) => WindowState = System.Windows.WindowState.Minimized;
+    private void CloseClick(object sender, RoutedEventArgs e) => CollapseToTray();
     private void ExitClick(object sender, RoutedEventArgs e) => Exit();
     public void Exit() { exitRequested = true; Close(); }
+
+    private void CreateTray()
+    {
+        if (closed || tray != null || !trayEnabled) return;
+        try
+        {
+            tray = new TrayIcon(new WindowInteropHelper(this).Handle, OpenFromTray, ShowTrayMenu);
+            if (tray.Created)
+                HwndSource.FromHwnd(new WindowInteropHelper(this).Handle)?.AddHook(InterceptMinimizeCommand);
+        }
+        catch (Exception e) when (e is InvalidOperationException or Win32Exception) { tray = null; }
+    }
+    // Caption clicks and the system menu arrive as WM_SYSCOMMAND SC_MINIMIZE; collapsing before
+    // the system minimizes avoids a visible restore flicker.
+    private nint InterceptMinimizeCommand(nint window, int message, nint wparam, nint lparam, ref bool handled)
+    {
+        if (message == 0x112 && (wparam & 0xFFF0) == 0xF020 && tray?.Created == true)
+        { handled = true; Hide(); }
+        return 0;
+    }
+    /// Collapsing hides the window completely when the tray icon exists; without one the taskbar
+    /// entry stays so a usable entry remains.
+    internal void CollapseToTray()
+    {
+        if (tray?.Created == true) { dragFeedback?.Dispose(); Hide(); }
+        else WindowState = System.Windows.WindowState.Minimized;
+    }
+    private void OpenFromTray()
+    {
+        if (closed) return;
+        if (IsVisible && WindowState != System.Windows.WindowState.Minimized && IsActive) { CollapseToTray(); return; }
+        OpenForForeground(WindowManager.Foreground, toggle: false);
+    }
+    private void ShowTrayMenu()
+    {
+        if (closed) return;
+        Native.SetForegroundWindow(new WindowInteropHelper(this).Handle);
+        var open = new MenuItem { Header = "打开面板" };
+        open.Click += (_, _) => OpenFromTray();
+        var settings = new MenuItem { Header = "设置" };
+        settings.Click += (_, _) => { if (!IsVisible) OpenFromTray(); SettingsClick(this, new()); };
+        var exit = new MenuItem { Header = "退出" };
+        exit.Click += (_, _) => Exit();
+        var menu = new ContextMenu { PlacementTarget = this, Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint, StaysOpen = false };
+        menu.Items.Add(open); menu.Items.Add(settings); menu.Items.Add(exit);
+        menu.IsOpen = true;
+    }
 }
 
 public sealed class WindowRow(WindowTarget target, Action<WindowRow> changed) : INotifyPropertyChanged

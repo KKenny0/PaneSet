@@ -5,10 +5,6 @@ using System.Windows.Threading;
 namespace PaneSet;
 
 public sealed record PlacementDisplay(DisplayArea Display, string Device, WindowRect Bounds, uint Dpi, long Configuration);
-public sealed record LayoutPositions(long Version, PlacementDisplay Environment, Guid DesktopId, IReadOnlyList<WindowRect> Regions)
-{
-    public DisplayArea Display => Environment.Display;
-}
 
 // Native observations are kept at this boundary so failure checks need not alter the user's desktop.
 internal class PlacementEnvironment : IDisposable

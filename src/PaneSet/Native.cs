@@ -49,6 +49,34 @@ internal static class Native
     [DllImport("user32.dll", SetLastError = true)] internal static extern nint SetWinEventHook(uint first, uint last, nint module, EventProc callback, uint process, uint thread, uint flags);
     [DllImport("user32.dll")] internal static extern bool UnhookWinEvent(nint hook);
 
+    internal delegate nint LowLevelHookProc(int code, nint wparam, nint lparam);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern nint SetWindowsHookExW(int id, LowLevelHookProc callback, nint module, uint thread);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern bool UnhookWindowsHookEx(nint hook);
+    [DllImport("user32.dll")] internal static extern nint CallNextHookEx(nint hook, int code, nint wparam, nint lparam);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] internal static extern nint GetModuleHandleW(string? module);
+    [StructLayout(LayoutKind.Sequential)] internal struct LowLevelKeyboardHook { public uint Key, Scan, Flags, Time; public nint Extra; }
+    [StructLayout(LayoutKind.Sequential)] internal struct LowLevelMouseHook { public Point Position; public uint MouseData, Flags, Time; public nint Extra; }
+    internal const int KeyboardHook = 13, MouseHook = 14;
+    internal const uint KeyDownMessage = 0x0100, KeyUpMessage = 0x0101, SystemKeyDownMessage = 0x0104,
+        LeftButtonUpMessage = 0x0202, RightButtonDownMessage = 0x0204, InjectedLowLevel = 0x10;
+    internal const int VirtualEscapeKey = 0x1B, VirtualLeftButton = 0x01;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    internal struct NotifyIconData
+    {
+        public uint Size; public nint Window; public uint Id, Flags, Message; public nint Icon;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string Tip;
+    }
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern bool Shell_NotifyIcon(int message, ref NotifyIconData data);
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)] internal static extern uint RegisterWindowMessageW(string name);
+    [DllImport("user32.dll", SetLastError = true)] internal static extern nint LoadImageW(nint module, nint name, uint type, int width, int height, uint load);
+    [DllImport("kernel32.dll", SetLastError = true)] internal static extern nint FindResourceW(nint module, nint name, nint type);
+    [DllImport("kernel32.dll", SetLastError = true)] internal static extern nint LoadResource(nint module, nint resource);
+    [DllImport("kernel32.dll", SetLastError = true)] internal static extern nint LockResource(nint resource);
+    internal delegate bool EnumResNameProc(nint module, nint type, nint name, nint param);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern bool EnumResourceNamesW(nint module, nint type, EnumResNameProc callback, nint param);
+
     [StructLayout(LayoutKind.Sequential)] internal struct Size { public int Width, Height; }
     [StructLayout(LayoutKind.Sequential)] internal struct ThumbnailProperties
     {
@@ -109,6 +137,7 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern nint GetWindowDpiAwarenessContext(nint window);
     [DllImport("user32.dll")] internal static extern int GetAwarenessFromDpiAwarenessContext(nint context);
     [DllImport("user32.dll")] internal static extern short GetAsyncKeyState(int key);
+    [DllImport("user32.dll")] internal static extern int GetSystemMetrics(int index);
     internal static MonitorInfoExtended MonitorExtended(nint handle)
     {
         var info = new MonitorInfoExtended { Size = Marshal.SizeOf<MonitorInfoExtended>(), Device = "" };

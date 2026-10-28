@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <ApplicationManifest>../../src/PaneSet/app.manifest</ApplicationManifest>
+    <ApplicationIcon>../../src/PaneSet/Assets/PaneSet.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup><ProjectReference Include="../../src/PaneSet/PaneSet.csproj"/></ItemGroup>
 </Project>

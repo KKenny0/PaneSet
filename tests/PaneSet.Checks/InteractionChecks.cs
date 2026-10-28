@@ -47,11 +47,25 @@ internal static partial class Program
             await Until(() => { if (process.HasExited) throw new Exception("PaneSet exited during startup."); process.Refresh(); return (handle = process.MainWindowHandle) != 0; });
             return handle;
         }
-        static async Task ExitApp(Process process, nint handle)
+        static async Task ExitApp(Process process, nint handle, string executable)
         {
-            ShowWindow(handle, 9);
-            var root = AutomationElement.FromHandle(handle);
-            var exit = root.FindFirst(TreeScope.Descendants, new PropertyCondition(AutomationElement.NameProperty, "退出"));
+            // A tray-hidden window needs the app's own reopen path: an external restore shows the
+            // native window but its WPF content stays unavailable to automation.
+            if (!Native.IsWindowVisible(handle))
+            {
+                using var poke = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false })!;
+                try { await Until(() => Native.IsWindowVisible(handle)); }
+                finally { if (!poke.HasExited) poke.Kill(); }
+            }
+            AutomationElement? exit = null;
+            // The reopened window's automation tree can come up empty if queried too early; poll
+            // with a fresh root element so a stale UIA proxy never sticks.
+            for (int i = 0; i < 150 && exit == null; i++)
+            {
+                exit = AutomationElement.FromHandle(handle).FindFirst(TreeScope.Descendants,
+                    new PropertyCondition(AutomationElement.NameProperty, "退出"));
+                if (exit == null) { await Task.Delay(100); process.Refresh(); }
+            }
             if (exit == null) throw new Exception("Explicit exit button was not found.");
             ((InvokePattern)exit.GetCurrentPattern(InvokePattern.Pattern)).Invoke();
             await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); Equal(0, process.ExitCode);
@@ -60,15 +74,18 @@ internal static partial class Program
         try
         {
             nint handle = await Opened(first);
-            PostMessage(handle, 0x10, 0, 0); await Until(() => IsIconic(handle));
+            // With the tray icon, closing hides the window completely: no taskbar button, no icon.
+            PostMessage(handle, 0x10, 0, 0);
+            await Until(() => { first.Refresh(); return first.MainWindowHandle == 0; });
             using var second = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false })!;
             try { await second.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); Equal(0, second.ExitCode); }
             finally { if (!second.HasExited) second.Kill(); }
-            await Until(() => !IsIconic(handle)); Equal(false, first.HasExited);
+            await Until(() => { first.Refresh(); return first.MainWindowHandle != 0; });
+            Equal(false, first.HasExited);
             Equal(1, Process.GetProcessesByName("PaneSet").Length);
-            await ExitApp(first, handle);
+            await ExitApp(first, first.MainWindowHandle, executable);
             using var restarted = Process.Start(new ProcessStartInfo(executable) { UseShellExecute = false })!;
-            try { await ExitApp(restarted, await Opened(restarted)); }
+            try { await ExitApp(restarted, await Opened(restarted), executable); }
             finally { if (!restarted.HasExited) restarted.Kill(); }
         }
         finally { if (!first.HasExited) first.Kill(); }
@@ -176,8 +193,8 @@ internal static partial class Program
         {
             var hint = (TextBlock)window.FindName("ShortcutText");
             if (hint.Text.Contains("不可用")) throw new UnavailableException("Global shortcut already owned: " + hint.Text);
-            window.WindowState = System.Windows.WindowState.Minimized;
-            await Until(() => IsIconic(new WindowInteropHelper(window).Handle));
+            Invoke(ButtonNamed(window, "收起"));
+            await Until(() => !window.IsVisible);
             SetForegroundWindow(fixture.Handles[0]); await Until(() => GetForegroundWindow() == fixture.Handles[0]);
             await Chord(fixture, fixture.Handles[0], 0x20);
             await Until(() => window.WindowState == System.Windows.WindowState.Normal && GetForegroundWindow() == new WindowInteropHelper(window).Handle);
@@ -198,13 +215,13 @@ internal static partial class Program
             await Chord(window, 0x5A); await Task.Delay(80);
             Equal(true, manager.HasPending);
             Equal(false, ((Button)window.FindName("UndoButton")).IsEnabled);
-            await Until(() => window.WindowState == System.Windows.WindowState.Minimized && !manager.HasPending);
+            await Until(() => !window.IsVisible && !manager.HasPending);
             SetForegroundWindow(fixture.Handles[0]); await Until(() => GetForegroundWindow() == fixture.Handles[0]);
             await Chord(fixture, fixture.Handles[0], 0x5A); await Until(() => !manager.HasUndo && !manager.HasPending);
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
             // WM_CLOSE and Esc keep the shortcut owner alive until explicit exit.
             window.WindowState = System.Windows.WindowState.Normal; window.Close();
-            Equal(System.Windows.WindowState.Minimized, window.WindowState);
+            Equal(false, window.IsVisible);
         }
         finally { window.Exit(); Directory.Delete(Path.GetDirectoryName(TestSettingsPath)!, true); }
     }
@@ -225,10 +242,11 @@ internal static partial class Program
         {
             if (((TextBlock)window.FindName("ShortcutText")).Text.Contains("不可用")) throw new UnavailableException("Global shortcut already owned.");
             var handle = new WindowInteropHelper(window).Handle;
-            window.WindowState = System.Windows.WindowState.Minimized;
+            Invoke(ButtonNamed(window, "收起"));
+            await Until(() => !window.IsVisible);
             // Synthetic message validates the registered hook's routing, independently of keyboard injection.
             PostMessage(handle, 0x312, 1, 0);
-            await Until(() => !IsIconic(handle));
+            await Until(() => window.IsVisible);
             window.OpenForForeground(fixture.Handles[0]);
             Equal(display.Handle, ((DisplayArea)((ComboBox)window.FindName("DisplayPicker")).SelectedItem).Handle);
             Equal(display.Handle, WindowManager.DisplayFor(handle).Handle);
@@ -236,8 +254,9 @@ internal static partial class Program
             Equal(1, Elements<CheckBox>(window).Count(b => b.IsChecked == true));
             window.OpenForForeground(handle, toggle: false);
             Equal(false, IsIconic(handle));
+            Equal(true, window.IsVisible);
             Equal(1, Elements<CheckBox>(window).Count(b => b.IsChecked == true));
-            window.OpenForForeground(handle); Equal(true, IsIconic(handle));
+            window.OpenForForeground(handle); Equal(false, window.IsVisible);
             window.OpenForForeground(fixture.Handles[0]);
             await Until(() => Elements<CheckBox>(window).Count(b => b.IsChecked == true) == 1);
             Toggle(Elements<CheckBox>(window).Single(b => AutomationProperties.GetName(b) == "采购合同 · 修订稿"));
@@ -245,10 +264,10 @@ internal static partial class Program
             await Until(() => manager.HasPending);
             PostMessage(handle, 0x312, 2, 0); await Task.Delay(80);
             Equal(true, manager.HasPending); Equal(false, ((Button)window.FindName("UndoButton")).IsEnabled);
-            await Until(() => !manager.HasPending && IsIconic(handle));
+            await Until(() => !manager.HasPending && !window.IsVisible);
             PostMessage(handle, 0x312, 2, 0); await Until(() => !manager.HasUndo && !manager.HasPending);
             foreach (var target in candidates) Equal(originals[target.Handle], manager.ReadState(target));
-            window.WindowState = System.Windows.WindowState.Normal; window.Close(); Equal(true, IsIconic(handle));
+            window.WindowState = System.Windows.WindowState.Normal; window.Close(); Equal(false, window.IsVisible);
         }
         finally { window.Exit(); Directory.Delete(Path.GetDirectoryName(TestSettingsPath)!, true); }
         var owner = new Window { Width = 300, Height = 200 }; owner.Show();

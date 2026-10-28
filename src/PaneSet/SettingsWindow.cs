@@ -43,13 +43,48 @@ internal sealed class SettingsWindow : Window
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 14) });
         body.Children.Add(notice); notice.Text = shortcuts?.Notice ?? "此检查窗口未启用全局注册。";
         body.Children.Add(new TextBlock { Text = "快捷键", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, Margin = new Thickness(0, 14, 0, 8) });
-        body.Children.Add(new TextBlock { Text = "单窗放置：保持要移动的窗口激活，将鼠标指向另一扇窗口后按放置键。被遮挡的位置可从主面板“选择其他位置…”进入。",
+        body.Children.Add(new TextBlock { Text = "拖动投放：按住下方辅助键拖动窗口，划过屏幕上的分区后松手；不需要时不影响普通拖动。",
             Foreground = UiPalette.Muted, TextWrapping = TextWrapping.Wrap, LineHeight = 20, Margin = new Thickness(0, 0, 0, 12) });
+        if (shortcuts != null) body.Children.Add(CreateDragModifierRow());
         if (shortcuts != null) foreach (var action in shortcuts.Actions.ToArray()) body.Children.Add(CreateRow(action));
         body.Children.Add(new TextBlock { Text = "面板内固定键", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, Margin = new Thickness(0, 18, 0, 8) });
         body.Children.Add(new Border { Background = UiPalette.Slate, CornerRadius = new CornerRadius(10), Padding = new Thickness(14), Child =
             new TextBlock { Text = "Alt+1 等宽 · Alt+2 主辅 · Alt+3 网格\nCtrl+F 搜索 · Alt+S 轮换\nEnter 确认 · Esc 收起面板 / 取消快速选窗", Foreground = UiPalette.Ink, TextWrapping = TextWrapping.Wrap, LineHeight = 24 } });
         ThemedChrome.Install(this);
+    }
+    private FrameworkElement CreateDragModifierRow()
+    {
+        var row = new StackPanel();
+        row.Children.Add(new TextBlock { Text = "拖动投放辅助键 · 按住生效", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, FontSize = 15 });
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 9), Foreground = UiPalette.Muted, FontSize = 12 };
+        row.Children.Add(status);
+        var editor = new WrapPanel(); row.Children.Add(editor);
+        var modifiers = new Dictionary<uint, CheckBox>();
+        foreach (var (value, text) in new[] { (1u, "Alt"), (2u, "Ctrl"), (4u, "Shift"), (8u, "Win") })
+        {
+            var box = new CheckBox { Content = text, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 12, 0), Foreground = UiPalette.Ink };
+            modifiers[value] = box; editor.Children.Add(box);
+        }
+        var save = new Button { Content = "保存", Padding = new Thickness(12, 6, 12, 6), MinHeight = 32, Margin = new Thickness(0, 8, 0, 0) };
+        AutomationProperties.SetName(save, "拖动投放辅助键保存");
+        row.Children.Add(save);
+        void Refresh()
+        {
+            uint mask = shortcuts!.DragModifiers;
+            foreach (var pair in modifiers) pair.Value.IsChecked = (mask & pair.Key) != 0;
+            status.Text = "当前：按住 " + string.Join("+", new[] { (mask & 1) != 0 ? "Alt" : null, (mask & 2) != 0 ? "Ctrl" : null,
+                (mask & 4) != 0 ? "Shift" : null, (mask & 8) != 0 ? "Win" : null }.Where(s => s != null)) + " 拖动窗口时显示投放分区。";
+        }
+        save.Click += (_, _) =>
+        {
+            uint mask = modifiers.Where(p => p.Value.IsChecked == true).Aggregate(0u, (n, p) => n | p.Key);
+            string error = shortcuts!.ChangeDragModifiers(mask);
+            notice.Text = error.Length == 0 ? "已保存。" + shortcuts.Notice : error;
+            Refresh();
+        };
+        Refresh();
+        return new Border { Child = row, Background = UiPalette.Surface, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12), Padding = new Thickness(14), Margin = new Thickness(0, 0, 0, 9) };
     }
     private FrameworkElement CreateRow(ShortcutAction action)
     {

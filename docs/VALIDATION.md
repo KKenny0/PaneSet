@@ -1,10 +1,200 @@
 # Windows 多窗原型验收
 
+## 当前验收状态（2026-10-15）
+
+当前产品源码基线为 `eadec9b`。本机已安排的常用流程人工验收已通过；标题栏第一组来自 `d71f487`，后续标题修复、主题及受控 A/B 来自 `eadec9b`。用户自测真实全局入口、单实例、跨屏 Undo 与改绑冲突的范围和采集限制仍按各条记录保留。
+
+最新完整自动回归是 **62 PASS / 1 FAIL / 3 unavailable / 0 未运行，退出码 1**。原 cross-monitor FAIL、后续正式单项 PASS 和人工 PASS 分别保留，根因未确认；不拼接成全套通过。single-instance、shortcut-routing、shortcuts 三项自动不可用结果不因人工报告改写。
+
+[任务 10](../.scratch/current-screen-selection/issues/10-stability-validation.md)继续开放，主要等待 Windows 11 与混合 DPI 实机记录；其他环境按支持范围补验。历史 quick-input 调查暂停，启动前快捷键已占用路径尚未单独验收。当前任务、已替代项与可选架构维护见[任务索引](../.scratch/README.md)。
+
+以下为按次保存的历史证据；其中“待反馈”“宿主运行中”等状态只适用于对应时刻。本次文档整理没有运行新检查或生成新包。
+
+## 快捷键改绑冲突人工通过（2026-10-15）
+
+用户对上一条四步流程反馈“我测试通过了”。记录人工PASS：被外部占用的测试组合保存失败并保留原绑定/启用状态及可用入口；占用器释放后同组合保存与实际唤起成功；最后恢复原设置。恢复按用户完成流程报告，未独立读回其配置。只读进程核对未发现命令行含hold-shortcut.ps1的PowerShell/pwsh进程；没有自动退出进程或修改用户设置。详见[人工判定](D:/VibeProject/diagnostics/paneset/shortcut-conflict-manual/manual-verdict.json)。
+
+本次通过范围为修改绑定时的外部冲突；README另附的“启动前已占用”路径未单独报告，不扩展为该路径本次人工PASS。连同用户此前自测真实全局入口/单实例及本机受控人工清单，本机已安排常用流程人工验收完成；受支持Windows11/mixed DPI仍缺环境记录，任务10继续保留环境覆盖缺口。原full66的62/1/3/0和三个unavailable不因人工结果而改写。无产品/正式检查修改、无新提交/发布。
+
+## 用户补充真实全局入口与单实例已自测通过（2026-10-15）
+
+用户明确“真实全局入口”和“单实例”都测过了，按当前对话语义补记两项用户人工验收PASS；未另行采集其被测进程/二进制/逐步操作日志，不表述为agent独立运行通过。原full66 single-instance/shortcut-routing/shortcuts三个unavailable记录保持。用户报告已覆盖的路径不再列为待其重复人工验收；Windows11/mixed DPI仍缺环境。
+
+用户询问快捷键占用如何测，已按当前SettingsWindow/PanelShortcuts行为准备[只占用F11组合的临时工具与步骤](D:/VibeProject/diagnostics/paneset/shortcut-conflict-manual/README.md)。Ctrl+Alt+Shift+F11占用器自检成功：独立进程同组合被拒绝1409，释放后独立进程可注册并释放；无输入注入/窗口操作/配置写入、无持续占用留下。这只是工具自检，PaneSet本次人工冲突流程仍PENDING。步骤只改OpenPanel，检查注册失败保留原值/原键、按钮可用、释放后新键保存/实际唤起、最后原样恢复；另附启动时冲突路径，需由用户自行退出/重启。未自动操作用户程序或改配置。无产品/正式检查变更。
+
+## 本机受控人工清单全部通过及收尾（2026-10-15，eadec9b）
+
+用户对刚发出的A恢复、B两窗排布/第三窗不动/恢复、B改选择预览后Esc取消三步反馈“都正常”，三项人工PASS。本机受控人工清单完成：标题栏/系统按钮（先前d71f487）、固定主题/标题修复/新MainWindow主题保持、系统跟随与固定模式对系统变化、跨屏Undo用户明确接受，以及本组受控A/B。按版本与实际路径保留，不把历史标题栏版本结果当新版本全流程实测。
+
+本组机器支持：02:25:54 A三窗列布局实际宽845/845/846、gap12、工作区Y40/height1400；02:26:06用户保存恢复三窗原始位置大小，restored=true/undo=false。02:26:23 B确认后两列实际1274/1274、gap12，第三窗仍原状态；02:26:29保存恢复完整初始状态/Undo=false。02:26:44 B未确认取消后34个被动样本几何保持原样、Undo/pending=false；用户确认改变选择和预览后Esc正常，机器只证明采样时刻状态，不声称连续全时刻未变。无action/cleanup/observation错误。详见[A/B人工反馈与几何核验](D:/VibeProject/diagnostics/paneset/manual-ab-20261015T022333Z/manual-verdict.json)。
+
+按准确控制台PID/HWND/标题正常关闭自建45788，fixture82388也退出；cleanup-verification确认两PID无剩余、用户PaneSet135772仍活、用户settings SHA不变、系统应用主题仍初始light1。全部本轮自建人工宿主已清理（194688、194988、125208、45788各自收尾记录）；没有自动退出用户进程或键鼠注入。
+
+自动全套最新仍62 PASS/1 FAIL/3 unavailable/0未运行，exit1，原cross-monitor FAIL保留；用户跨屏Undo人工PASS及后续正式单项PASS独立，不重写为全66绿。三个不可用为single-instance/shortcut-routing/shortcuts（用户实例/全局键占用）。受控宿主不证明生产App/真实全局A/B/桌面候选范围，受支持Win11、mixed DPI仍未验。task10保持needs-info/in-progress，仅待这些剩余覆盖，不继续重复已通过人工清单或追查暂停的间歇quick-input。
+
+修复local commit eadec9b不变，本轮仅追加两诊断文档、外部证据及handoff，未新增产品/正式测试修改、未push/发布。
+
+## 人工系统主题与跨屏Undo通过（2026-10-15，eadec9b）
+
+用户明确“跨屏Undo可以标注验收通过。我人工验收完成，都正常”。跨屏Undo验收结论记人工PASS，同时保留原full66 cross-monitor FAIL和随后正式单项PASS为独立记录，不宣称根因修复或把full改记绿。本次“都正常”对应上一轮发出的系统跟随/固定不随系统变化五步清单；主面板、设置、B外观人工PASS，不扩展成未发出的A/B排布恢复取消组。
+
+宿主机器实际采样System/light1→palette亮、System/light0→palette暗，以及Dark/light0及light1→palette暗；固定亮色及各surface视觉结论依据人工报告，非所有机器样本。两次B均未确认，不能推断两窗排布或Undo；退出主面板后最后保存因manager已关闭身份不可读而报观察错误，不是产品主题FAIL，也没有有效最终保存几何结论。
+
+只关闭自建控制台125208，其fixture25164也退出；cleanup-verification确认两PID无剩余、用户PaneSet135772仍在、用户配置SHA不变、系统应用模式已恢复light1。[系统组人工结果/清理](D:/VibeProject/diagnostics/paneset/manual-continuation-20261015T021501Z/manual-verdict.json)保留用户原话与证据范围。
+
+已打开新[受控A/B验收宿主](D:/VibeProject/diagnostics/paneset/manual-ab-20261015T022333Z/README.md)，02:23Z/PID45788，仍用同一正式Product84f18b0e和own fixture，Release0警告错误/validate-only通过，user config SHA相同/system light1。等待A三窗排布恢复、B两窗排布第三窗不变及恢复、B改选择预览后Esc几何/Undo不变的逐项人工反馈；有意保留own宿主，尚未完成此组。用户真实全局实例/热键不自动关闭，Win11/mixed DPI仍缺环境，task10保持open。无新产品/正式测试修改或提交。
+
+## 继续最终验收（2026-10-15，eadec9b，全66结束62/1/3/0）
+
+用户授权继续后，同一冻结修复版本次完整66项实际运行02:08:55Z–02:10:29Z/93.963156s，62 PASS/1 FAIL/3 unavailable/0未运行，exit1，没有输入保护ABORT。旧label含20261014T1020而非执行日期；source834dee89/Checks23383d4c/Product84f18b0e/PDB2970accf与此前修复版一致，全部冻结source/binary/PDB/result/inventory及当前工作区源已核实。源码和二进制分别对各自快照比较。此前41未运行只属于旧一轮，本次没有未运行项。
+
+FAIL仅cross-monitor：首个正向普通窗组合UndoAsync().Success断言false，原日志没有Pending/具体窗口结果，原因未确定。unavailable分别是single-instance（用户现有实例）、shortcut-routing/shortcuts（全局键占用）；现用户PaneSet135772保留，不自动退出/解除热键。其他62通过，包括quick-input/global-quick-input及标题appearance，历史间歇问题继续暂停。
+
+随后仅外部test clone加Undo报告/几何观测，首次IntPtr JSON序列化失败单列工具错误；修正primitive日志后一条诊断cross-monitor全部原断言通过。用户补充“跨屏的问题可能和我刚刚关闭了显示器有关”。原始full初始workarea Y=0,height1440，诊断Y=40,height1400；关屏时间/Undo时拓扑未采样，环境变化是线索，不认定根因。随后同一未经观测修改的正式冻结DLL独立cross-monitor也1/0/0、exit0，四方向/最大化组合及副屏三窗原检查通过；与full FAIL分开，不拼接为全66通过。没有生产/正式测试改动或放宽断言。
+
+[原始全66、单项及跨屏跟进](D:/VibeProject/diagnostics/paneset/preview-heading-green-20261014T095725Z/CONTINUATION-20261015.md)保留，Advisor支持“诊断单项未复现、原始失败仍未解释”。任务10不关闭。
+
+新[系统主题与A/B人工宿主](D:/VibeProject/diagnostics/paneset/manual-continuation-20261015T021501Z/README.md)02:15Z/PID125208启动，build0警告错误/validate-only通过，读取原临时设置，user config SHA相同、系统应用light1。四个桌面范围控件在显示前关闭，只用own三fixture/无SendInput或全局注册；用户PaneSet135772仍保留。现在等待人工系统跟随/固定不跟随、A/B布局/恢复/取消反馈，own宿主有意保留不称已清理。真实生产入口及Win11/mixed DPI仍不可用/未验。
+
+## 暗色预览标题修复（2026-10-14，eadec9b，机器及本组人工PASS）
+
+用户完成本组后明确反馈“验收通过”。仅记录此前给出的三步范围：暗色预览标题可读、固定亮/暗切换正常、新宿主读取原临时配置保持暗色；此新MainWindow构造不等同生产App/单实例启动。10:08:43 panel-opened机器快照实际mode=Dark/paletteDark=true/Windows app light=1，两次用户保存仍Dark、fixture原几何restored=true/undo=false。机器未采样到亮色，亮色人工结论依据用户报告；没有A/B操作，不推断A/B恢复或系统主题切换PASS。
+
+验收后按准确宿主PID/HWND/控制台标题发WM_CLOSE，宿主194988与其fixture87568均退出；未发送键鼠输入。cleanup-verification.json确认两PID无剩余、用户配置SHA未变、系统应用主题仍light=1。两份原诊断文档仍未提交。此缺陷复验完成；任务10仍保留全66余41、系统跟随及固定模式对系统变化、A/B完整布局/恢复/取消、生产入口/Win11混合DPI等未验项。
+
+用户明确授权“在当前session完成并复验”。MainWindow.xaml:134的PreviewExpander新增Foreground动态Ink绑定；既有appearance检查读取实际模板“布局预览”TextBlock，在初始暗色、运行时亮→暗及设置切到亮色后断言主题文字色。没有改变66项清单或输入/Undo/取消规则。本地提交eadec9b只含产品XAML及检查Program.cs，12增1删；两个诊断文档继续未提交，未推送/发布。
+
+新增断言在未修产品上先红（Expected #FFE9F1F0, got #FF000000），前台准备/真实输入前失败；修复机器appearance复验1/0/0、exit0，主/隔离Release构建0警告错误。最终全声明文件逐字节工作区副本source834dee89，Checks23383d4c/Product84f18b0e/PDB proof2970accf。实际修复DLL的零输入/零目标自有WPF截图标题亮色、对比度12.31289，无临时SetResourceReference干预。第一次隔离绿副本的部分未改文件由Git检出换行为CRLF，原通过记录保留而不称工作区全字节相同；当前另建精确副本通过。
+
+首次全66预检因Backspace/VK8阻挡，0检查启动，归档独立。最后精确副本的全66实际启动后24 PASS/1保护FAIL/0 unavailable/41未运行，exit1：overview-size-ui注入前有键/按钮按下，拒绝点击并ABORT，不自动重试。独立appearance通过不填入41项，不拼接旧版结果。
+
+[修复来源、红/绿与全66及截图](D:/VibeProject/diagnostics/paneset/preview-heading-green-20261014T095725Z/README.md)已验证。执行助手静态自审确认局部主题绑定及模板断言符合本次范围，非独立/CodeReview双轴审查。
+
+新[人工宿主](D:/VibeProject/diagnostics/paneset/manual-preview-fix-20261014/README.md)10:03Z/PID194988启动，原临时设置路径继续使用；用户10:08点击“显示主面板”后构造新MainWindow，主题保持/可读性已按本组反馈通过。宿主与own fixture随后已正常退出；四个桌面范围控件在显示前按x:Name封闭。用户配置SHA与初次相同、系统应用light=1，未注入键鼠。此宿主不证明生产App/单实例/全局入口；修复后系统跟随、A/B完整恢复/取消、Win11/混合DPI仍待验收。任务保持open。
+
+## 人工主题验收缺陷（2026-10-14，d71f487，历史发现时未修复）
+
+用户反馈暗色主题下“布局预览”字体黑、看不清，其他本组无问题。标题可读性记录人工FAIL，其余固定主题检查记录用户未发现异常；系统主题切换、宿主新进程主题保持、A/B完整恢复/取消不补记通过。
+
+根因已用同一冻结产品DLL696dfac6确认：MainWindow.xaml:134的PreviewExpander未绑定Foreground，模板生成“布局预览”TextBlock保持#FF000000；实际IsDark=true、Ink=#FFE9F1F0，Panel背景#FF1A2D3D，对比度1.48666。预览编号已经亮色。零目标/零全局热键/无键鼠注入/ShowActivated=false探针复现退出1，自己的WPF截图读回一致。仅在诊断窗口SetResourceReference(Foreground,"Ink")后标题#FFE9F1F0、对比度12.31289、退出0。该干预是根因对照，不是修复构建或正式回归。全src Expander搜索只命中本处。
+
+[诊断、原始/提案截图及一行未应用补丁](D:/VibeProject/diagnostics/paneset/dark-preview-d71f487-20261014/README.md)已保存，产品/正式检查源码未改、没有新提交。当前session原定回归/人工验收，产品修复范围待用户决定，任务不关闭。
+
+另纠正本机验收宿主防护：首次隐藏A所用AutomationProperties.Name写错，真实名为“排布本屏全部窗口”，旧宿主实际未隐藏A。发现后按PID/HWND/精确控制台名向自建194688发WM_CLOSE，确认正常退出；原日志保留，不改写为旧防护成功，不从用户无异常反馈推断未操作其他窗口。仓库外宿主已改用四个x:Name、在显示前隐藏并取消命中/焦点/Tab，缺控件则拒绝创建；0警告错误重建。探针实际确认这些最终控件全部隐藏/不命中/不焦点。尚未重新启动修正宿主。关闭/诊断没有键鼠注入或终止用户PaneSet的工具调用；末次只读查找PaneSet进程结果为空（原117480已不在），未观察谁关闭它，不把此前“仍保留”当作当前存活证据。用户配置文件SHA与本轮启动前一致。原初始化黑标题截图、修正外部工具的来源和停止记录分开存档。
+
+## 人工验收第一组反馈（2026-10-14，d71f487）
+
+用户按第一组要求操作后反馈“都正常，目前没看到异常”。据此记录受控MainWindow的标题栏拖动、边缘缩放、最大化/还原、最小化、关闭收起及再次显示为人工PASS。现场日志有WM_SYSCOMMAND/WM_EXITSIZEMOVE与尺寸/状态变化，支持有实际交互，不代替人工体验结论。宿主源/产品和范围不变；[人工判定记录](D:/VibeProject/diagnostics/paneset/manual-d71f487-20261014/human-verdict.json)与observations-20261014T090101Z-194688.json保留。
+
+日志还出现受控A调用和B确认，但此次明确要求/反馈对应第一组标题栏及按钮；不把这些事件扩大为A/B排布-恢复/取消全部人工通过。保存观察时palette仍System/Light；固定主题、系统跟随、主题重启、A/B独立几何恢复/取消仍待下一组操作。机器restored字段在最后保存时false，不自行归因为产品恢复缺陷或记录恢复PASS。最终回归剩余36项、App全入口、Windows11/mixedDPI仍待验收。未重跑桌面注入/修改源码/发布。
+
+## 最终版本续验与人工入口（2026-10-14，d71f487）
+
+用户将后续产品事项交给新session，当前session只执行最终回归和人工验收。本轮核对HEAD d71f487、仅两份旧文档未提交，工作区C#与冻结最终源fb785351相同。08:48Z默认桌面预检通过后启动受保护全66，冻结Checks34df2dbd、产品DLL696dfac6、DLL/PDB证明核验通过，源码无漂移。
+
+本轮41.08秒，**29PASS/1输入保护FAIL/0 unavailable/36未运行**，退出1。第30项quick-entry在PreparePickerHost→ClickOwned→ClickNativeOwned之前的GetAsyncKeyState检查检测到按下状态，拒绝发送点击，ABORT unrun36并停止后续桌面注入。overview-size-ui/overview-viewport/overview/thumbnail/mouse-routing本轮均PASS；后续36未运行，不以此前版本或定向PASS代替。停止后08:51Z只读预检为空按键/Default桌面，未据此自动重试。本轮不能判断拒绝时哪个键或来源（错误仅报告有键/按钮按下），不当作产品根因证据。
+
+受保护runner命令不变；只读verify-regression.py由实际command是否含--case识别全套，而非固定label，支持此次新label；核对所有冻结文件、证明哈希和case枚举，未启动检查。记录：[本轮JSON](D:/VibeProject/diagnostics/paneset/formal-input-guards-20261014T080102Z/regression-summary.json)、evidence/final-d71f487-20261014T0848-full66。
+
+当前harness未提供ComputerUse/node_repl可调用入口，已读取其规则而没有运行ComputerUse动作。为人工操作准备了仓库外[受控验收宿主与步骤](D:/VibeProject/diagnostics/paneset/manual-d71f487-20261014/README.md)，Release0警告错误，--validate-only核对产品DLL通过且不启动UI/input。09:01Z人工宿主启动预检通过，宿主PID194688及独立fixture存在，尚无人工通过结论。宿主使用同一冻结产品DLL/临时配置，键盘鼠标不自动注入、全局键不注册，隐藏生产面板桌面范围A/B及刷新/最近组入口；helper调用生产A/B的显式fixture候选方法，仅影响三扇自建窗口。它不是PaneSet.exe/App单实例端到端启动，不证明全局热键或全桌面A。重启主题的观察范围必须按此注明。Windows系统主题由人操作并恢复初始AppsUseLightTheme=1，宿主只读；机器native-chrome/palette/几何观察不是人工PASS。
+
+09:01后核对宿主控制台确实存在、stderr为空、用户配置哈希未变，用户PaneSet仍保留；人工宿主有意保持运行等待操作，不能写owned0。其launch.json、observations-UTC-PID.json保留独立启动记录。当前原生回归仍未完成，人工步骤待用户操作反馈；Win11/混合DPI未运行。未改生产/测试源码、未提交/推送/发布本轮记录。
+
+## 正式输入检查保护与66项回归（2026-10-14）
+
+用户暂停quick-input间歇根因追查，并授权先补正式测试保护、再跑整体回归。生产源码未改，时序参数和DEBUG探针均留在诊断目录。测试改动已本地提交d71f487（test: guard owned input and isolate shortcut checks），诊断文档保持未提交。正式测试对每次键盘注入校验检查窗口/活fixture身份、前台、可见/启用/焦点/Ready及全部VK按下状态；鼠标保留布局就绪/严格命中/物理保护，增加活fixture身份、全部VK检查与移动光标后再次命中。quick-input追加确认后两窗布局Bounds、第三窗保持，保留原60ms和Undo/取消断言。原66入口数量不变，同一quick-input补入未显示WPF/无效fixture目标的4个真实发送入口拒绝检查（不执行SendInput）。
+
+审阅还发现固定全局按键不可读用户配置：shortcuts/shortcut-routing现使用进程唯一临时配置，明确OpenPanel/Restore键，A/B禁用；旧配置键失效检查临时注册id90确认独占，再发送，finally只释放自身注册。B入口先读取真实设置UI的注册状态。两处日志包装保留Unavailable传播。
+
+| 构建与本轮 | 通过 | 失败 | 环境不可用 | 未运行 | 退出码 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 初版保护b0b75135/a7884972：quick-input单项 | 1 | 0 | 0 | 0 | 0 |
+| 初版保护b0b75135/a7884972：全66，108.82s | 61 | 2 | 3 | 0 | 1 |
+| 最终配置隔离版fb785351：全66，28.90s | 24 | 1（输入保护拒绝） | 0 | 41 | 1 |
+
+初版2FAIL为mouse-routing在首次点击后的前台等待超时、quick-entry在PreparePickerHost前台等待超时，未据此归因产品。3 unavailable为single-instance/shortcut-routing/shortcuts（现有用户实例/快捷键占用）。最终版第25项overview-size-ui检测到GetAsyncKeyState按下状态，在ClickNativeOwned发送前拒绝，ABORT unrun41；停止本轮后续输入。首轮结果不覆盖最终版41项未运行，不拼成全绿。最终版仍未完成全部桌面检查，人工/平台验收未启动。quick-input历史故障保留为未复现、暂停追查。
+
+两次工作区与独立Release均0警告/错误；冻结源/二进制SHA与DLL/PDB/声明C#证明核验通过，最终测试与工作区字节一致。独立只读审阅44调用找出配置P1，修复后17调用复核无新可行动问题、正常结束且审阅源SHA未变。审阅不是实机PASS，也不是/CodeReview双轴报告。08:03:45Z自建诊断进程0、用户PaneSet117480保留；未推送/发布。
+
+证据：[初版完整记录](D:/VibeProject/diagnostics/paneset/formal-input-guards-20261014T075159Z/regression-summary.json)、[最终版记录](D:/VibeProject/diagnostics/paneset/formal-input-guards-20261014T080102Z/regression-summary.json)、[配置修复只读复核](D:/VibeProject/diagnostics/paneset/formal-input-guards-20261014T080102Z/review/report.md)。来源核验限DLL/PDB配对与声明C#，不扩大为资源/生成输入/依赖/编译配置完整可复现性证明。Windows10/96+96DPI下记录；Windows11/混合DPI保持未验收。
+
+## quick-input 解锁后续验（2026-10-14，157ec7d）
+
+原版source212fec9e/Checks21e33f三组9轮完整PASS，覆盖实际Space/Alt1、两个Enter、Undo和二次Esc；未复现历史确认超时。68归档67来源匹配/1旧失配明确排除，不是68PASS。独立策略审阅核实原SendKeys60ms、直接Space/Enter/Esc没有逐次输入保护，原版未断言Undo前应用位置；之前关于每次保护的描述范围过宽，原9PASS不得补足这些边界。
+
+[有界时序诊断副本](D:/VibeProject/diagnostics/paneset/quick-input-timing-157ec7d/README.md)产品源码保持，测试补逐次保护与应用位置断言；同一新副本sourcef3ec8362/Checks1385d418控制60ms与first-Enter settling 1/8/20ms全部PASS。新旧构建分别记，条件仅每值一次，不能证明不存在竞态/高复现率或修复。仍Phase1，生产/仓库testC#不改，不关闭任务10。独立Advisor重试因同模型被禁用，策略审阅为独立只读Pi，区别于Advisor调用。
+
+## 任务10续验与来源校验（2026-10-14，157ec7d）
+
+本版11项纯规则/临时文件/message-only HWND检查全部PASS/退出0，覆盖overview-size、选择刷新/资格/顺序和7项保存事务；这些不创建可见窗口、不发送输入。预检起初Ctrl按下，完成无输入工作后按键已清空，才尝试quick-input。原版source212fec9e/Checks21e33f在第一次第二Enter确认等待失败，历史第二次进入准备超时未重现。窄Enter日志sourceef151/Checks60117一轮全PASS，含实际确认、Undo和第二次Esc，不证明根因消失。
+
+随后点击准备被Explorer ToolbarWindow32所有权保护拒绝，停止后续实际输入，未启动global/viewport/完整66。该次同时发现源码/产物来源失配：copy2恢复源文件旧mtime，增量构建仍用带日志Checks60117。原task10-157ec7d-clean-quick-input记录保留，provenance-exclusions.json明确不计clean源码验收；不能把其中的保护拒绝当作产品激活缺陷。被动空目标面板8采样WPF/native topmost一致、前台保持原窗口，只有观察意义。
+
+外部诊断build/runner改为强制Rebuild、旧状态失效后原子发布成功状态、配对DLL/portable PDB并核对25个项目C#文档、冻结来源核对完成后才启动。失配红（ScreenSelectionChecks.cs checksum）与完整来源绿均已记录。独立工具复审指出Python-O移除assert和遗漏普通C#误接受，已用隔离无输入红绿修为显式拒绝和双向集合核对；6种普通/-O无效状态实际case进程启动0，最终-O安全pipeline PASS。59份归档58来源匹配/1明确排除，不是PASS计数，也不证明资源/生成输入/依赖/编译配置来源。
+
+任务10继续needs-info/in-progress，剩余输入/根因、完整66和Windows11/mixed-DPI等实机验收未完成。仓库生产/测试C#不改，原两份文档及追加未提交；只使用自建窗口/临时配置，保留用户117480，无push或release。证据见[本轮诊断目录](D:/VibeProject/diagnostics/paneset/issue10-1a32825-current/README.md)、[来源排除清单](D:/VibeProject/diagnostics/paneset/issue10-1a32825-current/provenance-exclusions.json)。最终[独立工具双轴复审](D:/VibeProject/diagnostics/paneset/task10-tooling-review-20261014T035407Z/REVIEW.md)Standards/Spec无新增问题，快照SHA一致；只验证工具范围，不关闭真实输入根因。
+
+## 审查P2修复（2026-10-14，157ec7d）
+
+独立审查1a32825...53a11e4确认新增局部输入诊断包装会把UnavailableException变为普通Exception，令runner将不可用输入误计FAIL/退出1。157ec7d仅在CheckLocalLayoutInput通用catch增加`when (e is not UnavailableException)`，清理正常完成时保留原类型交给runner计SKIP/unavailable；普通断言/前台等待/保护拒绝仍按原路径包装并FAIL，生产及输入保护未改。
+
+主区和隔离树Release均0警告/错误；7份迁回源码一致，43轮历史冻结证据重新核对通过，旧14项PASS未在新构建重跑。独立只读双轴复审53a11e4...157ec7d未发现新增Standards/Spec问题。未发送桌面输入，实际SendInput不可用负向路径未验证，现有入口缺少无需真实输入覆盖该catch的自然测试边界；没有用人工runner异常或私有实现结构检查替代端到端回归，也不声称TDD红绿或完整验收。
+
+原Standards两项维护建议保留：错误文案变化时升级专用保护异常，视口结构/阈值共同变动时考虑共享断言。任务10仍needs-info/in-progress，完整66与实机验收待完成；只有一行测试源码提交，原文档及追加未提交，无push/release。复审见[REVIEW.md](D:/VibeProject/diagnostics/paneset/review-53a11e4-157ec7d-20261014T023613Z/REVIEW.md)，取舍见[P2复盘](D:/VibeProject/diagnostics/paneset/review-fix-unavailable-53a11e4/RETRO.md)。
+
+## 解锁续验与测试点击修复（2026-10-13，任务10仍开放）
+
+用户确认解锁后，037e216对应冻结产物的`overview-size-ui`、`appearance`、`local-layout-keys`完整PASS，退出0；局部键走完三种Alt布局、Enter排布/恢复与末尾普通1，文本实际变为1。旧日志中全量SendInput成功同时error=5是残留错误码，不能解释为拒绝；新测试日志成功打印error=0，失败仍保留原码。
+
+原overview真实卡片click仍失败。最小时间线两轮捕获：计算点时卡片measure无效、原点(680,741)，鼠标消息时原点已变(1266,461)，旧点落在另一张卡片。down/up都早于光标恢复，这两轮不能归因恢复过早。测试ClickOwned在读坐标前UpdateLayout并等待measure/arrange有效；保留实际点击、命中/按钮保护、原等待和勾选断言，不改生产。最小点击绿、带时间线的完整overview绿；移除临时插桩后同一构建的原`overview`、`mouse-routing`、`quick-flow`均完整PASS，包括700×450边界/70 DIP、搜索/顺序/失效/排布/Undo。
+
+随后最终`quick-input`在第二次进入准备的前台等待失败；`global-quick-input`因已有鼠标按钮按下拒绝注入，立即停止后续桌面输入，没有释放用户按钮。新增可选PANESET_CHECKS_STOP_ON_INPUT_GUARD=1供诊断runner，在保护拒绝时停止并报告unrun；默认入口行为保持。无注入合成对照证明启用时后一哨兵不执行、unrun=1，默认则执行；两子进程退出1是预期负向证据，不计作产品失败或完整套件统计。字符串识别保护依赖现有错误文案，限制已注释。
+
+本地提交53a11e4仅三个测试文件（布局同步、错误日志和可选停止机制），产品DLL与037e216冻结产物逐字节相同。临时鼠标/哨兵探针清出源码；当前7份迁回源逐字节一致，Release0警告/错误。verify核对43轮源/程序集/补丁与退出码，并检查哨兵结果；不同构建结果分别保留，不混为同一全套。12:51:40Z只读确认本诊断进程0、用户PaneSet117480保留。
+
+完整66项尚未启动；quick-input/global-quick-input剩余链、首次viewport前台准备间歇失败、真实Windows主题切换/重启、标题栏鼠标、Windows11仍待验。任务保持needs-info/in-progress，不关闭历史前台不稳定。原两份未提交文档及后续追加保留未提交，未推送/发布/动用户配置布局。证据与复盘见[诊断索引](D:/VibeProject/diagnostics/paneset/issue10-1a32825-current/README.md)。
+
+## 1a32825 当前基线：低高度布局与输入诊断（2026-10-13）
+
+现场HEAD为1a32825，原两份未提交文档的SHA与交接manifest完全一致，无产品源码漂移。独立checkout/输出与a0b068d历史诊断分开；未移植旧被动显示候选。
+
+700×450的最小真实窗口检查捕获已选列表视口 **56.60 DIP <70**。实际96 DPI，外框与客户区均为700×450，确认、取消按钮当次均在边界内；原全套的按钮边界失败尚未本轮复现。产品在低于600 DIP时缩减头部留白18 DIP，恢复正常高度时还原，保留全部文字、按钮与原断言。相同250ms前三档流程取得修复后 **74.60 DIP**，但后续缩放失焦使整项仍失败；另以Dispatcher ContextIdle/UpdateLayout及原生尺寸读回完成`overview-viewport` **1 PASS / 0 FAIL**、退出0，两主题三尺寸、599→600、回450/900及取消后的fixture几何/Undo均通过。截图属于WPF，不是DWM合成；同一idle测试的未修复版本复跑后来被LockApp阻挡，不能称其红测。
+
+当前`quick-flow`完整PASS、退出0；`local-layout-keys`在首次前台等待超时，未发送任何键。新增测试侧局部输入保护/诊断：注入前检查owned前台/焦点、修饰键/目标键/按钮异步状态，记录自己窗口的文本/选区、HWND/PID、键/字符及激活消息和SendInput返回数量，finally解除hook。该诊断键路径未越过本轮前台等待，不宣称实际送达或历史输入故障修复；生产激活不改。
+
+最终冻结构建 **14项无注入定向全部PASS**、每项退出0：`ui`、`settings-ui`、`overview-size`、三项选择规则、7项保存契约、`shortcut-settings`（含主题/快捷键互相保留及保存失败）。Release0警告/错误；迁回主仓库的六份源码/测试与隔离树逐字节一致，主区独立重建也0警告/错误，未额外重跑主区桌面检查。
+
+最新真实输入命中PID19500，07:56:11Z只读确认LockApp后停止全部桌面注入。未运行修复后原`overview`全流程、`appearance`、`overview-size-ui`、完整66项（原65加新增viewport）；真实Windows主题切换/手动覆盖/重启、标题栏鼠标和Windows11仍待验。历史61/1/3与更早统计保留，任务10维持needs-info/in-progress。
+
+[完整证据与限制](D:/VibeProject/diagnostics/paneset/issue10-1a32825-current/README.md)、`summary.json`、`verify.py`核对27轮冻结源/程序集/补丁；初期tracked diff不含未跟踪probe，须看逐文件source SHA。新runner验证源码集合与构建、启动程序集对应且运行中无源漂移；哈希不代替因果验证。Standards/Spec为同会话人工审查，Advisor仅摘要建议，无独立双代理审查。本地提交037e216只含本轮六份源码/测试；原文档及本轮追加保留未提交。无用户配置/布局变更、推送、发布或新增提权捕获。
+
 ## A/C 外观审查修复（2026-10-13）
 
 暗色主面板窗口标题现在明确使用 `Ink`，避免复用控件默认黑字；快速选窗卡片的悬停、键盘焦点描边改用动态资源，运行中切换调色板会立即更新。`appearance` 检查两种标题颜色、卡片焦点描边的明暗往返、设置保存及主窗口最小化、最大化与还原。暗色总览截图等到 `IsReady` 后生成，不再把初始化瞬间当作稳定界面。
 
 本机 Windows 10 Build 19045 对 `DwmSetWindowAttribute` 属性 20 返回成功，但在系统亮色时对测试窗口设置暗色后，标题栏仍显示白色。主面板和设置改用 WPF `WindowChrome` 绘制应用主题标题栏，保留拖动、缩放和系统按钮。独立输出目录的 Release 构建为 0 警告、0 错误；定向 `appearance`、`ui`、`settings-ui`、`overview-size-ui`、`quick-flow` 已通过。完整检查为 **61 PASS / 1 FAIL / 3 unavailable**；唯一失败仍是 `overview` 在 700 × 450 时的确认按钮边界断言，定向 `overview-size-ui` 通过。3 项 unavailable 仍因现有用户 PaneSet 实例或全局键占用。此结果不构成全量通过。系统主题真实切换、标题栏鼠标拖动及 Windows 11 实机仍待验收。
+
+## 解锁后的固定基线复核（2026-10-13，任务 10 仍开放）
+
+用户回复已解锁后，前台只读查询为 pebrel；固定 `a0b068d` 的插桩 `overview-size-ui` 两轮均完整 PASS，新建未插桩独立 checkout 再跑一轮也 PASS，覆盖 2/3/8 窗、过滤前后视口、取消及源窗口几何。真实标题点击记录送达 WM_NCLBUTTONDOWN，无双击或最大化消息；不据三轮通过解释历史前台超时或会话取消。
+
+同一原版独立构建的 `quick-flow` 在 PreparePickerHost 点击后实际前台等待超时；`local-layout-keys` 在发送任何布局键之前等待前台超时。最小化不稳定：不含 picker 的主面板准备可通过，保留 120ms 后另捕获被外部窗口覆盖的命中保护失败，不能混同点击后超时。普通自建 Window 正反两序对照，ShowActivated=false 时原生 topmost 位为 true，默认 true 时为 false，Dispatcher idle 和直接原生请求后仍保持区别；实际前台均为 Zed。此为当前环境的路径相关性，未查明底层机制或具体外部因素。
+
+仅在独立诊断树试验首次被动显示，`quick-flow` 保留原全部流程/断言完整 PASS 一轮。`local-layout-keys` 的候选使用原受保护点击准备，首轮越过三种 Alt 布局键、确认排布和恢复，在末尾普通字符 1 断言超时；仅添加末尾日志后的另一轮又在更早的前台等待失败，末尾日志没有执行。候选未移植主工作区，不称为完成修复。
+
+最后最小普通字符 probe 成功取得前台，在任何合成键盘输入之前收到 Shift key-down（WM_KEYDOWN/16），按键检查拒绝注入，随即停止实际输入。异步按键状态不能识别人为或其他合成来源；未释放该按键。LockApp 的先前阻挡已解除，本轮新的拒绝不能归为锁屏，也不覆盖此前字符失败。
+
+[21 轮复核索引与限制](D:/VibeProject/diagnostics/paneset/issue10-overview-a0b068d/README.md)及 `evidence/unlocked-summary.json` 保存每轮分类；其中最后 7 轮启动前冻结本地程序集（含 PaneSet.dll）并绑定完整产品/测试源码，验证脚本重算哈希通过。更早记录只有 Checks.dll 哈希和部分源码记录，不能补造完整产物；tracked git diff 哈希不含未跟踪 probe，另由每文件记录覆盖。本轮未重跑全套、未完成 Windows 11 验收，不改写其他工作的全套结果或历史 57/4/3、48/6/3。本调查在主工作区只追加文档；所有候选留在隔离目录，未提交、推送或发布。
+
+## overview-size-ui：单项诊断与桌面访问阻挡（2026-10-13，未修复）
+
+以 a0b068d 独立构建，Release 0 警告/错误；主分支新 logo 与其他进行中的 UI 修改未纳入。原版单项两次 FAIL 均为已打开 picker 后的会话取消，不是原前台超时。阶段插桩两次分别在 count2/count3 复现原始 fixture 前台等待超时；第二次 count2 完整通过。事后外部 Chrome 类快照不确定取消与前台切换的先后，不将窗口类当作具体应用或根因。
+
+去掉 picker 的最小版本两次 PASS；仅保留其生命周期时，第二次标题栏点击造成独立最大化/几何失败。自建 fixture 的直接消息对照 PASS：客户区双击不改几何，标题栏双击产生系统最大化，再次产生还原。此控制不调用 PaneSet 面板、不注入物理鼠标/键盘，只支持独立标题栏机制，不替代真实输入或证明前台超时原因。
+
+随后一次真实输入在命中所有权保护处拒绝注入；阻挡 PID19500 已只读确认为 LockApp，桌面输入随即停止。锁屏仅解释这一轮，不覆盖前面的失败。当前需解锁交互桌面才可继续真实点击/前台记录；未改变激活、等待、断言或保护。原始 9 轮状态分别保存，并有插桩补丁、程序集/源码哈希，详见 [诊断索引](D:/VibeProject/diagnostics/paneset/issue10-overview-a0b068d/README.md)与 [任务 10](../.scratch/current-screen-selection/issues/10-stability-validation.md)。
+
+本次调查未改生产源码，当前主工作区其他进行中的 UI 修改保留。尚未形成稳定的最小前台超时复现或产品修复；任务 10 保持 needs-info / in-progress。未重跑全套，57 PASS / 4 FAIL / 3 unavailable 与历史 48/6/3 保留。
 
 ## 配置替换：第 5 阶段修复及最终回归（2026-10-12）
 
@@ -326,3 +516,28 @@ Windows 10 Pro 22H2、Build 19045、x64，交互会话 1。局部 .NET SDK 10.0.
 - macOS、长期窗口组、联动缩放、跨虚拟桌面和最小化窗口唤醒未实现。
 - 当前 Windows 10 Pro 22H2 不在 .NET 10 官方支持列表中，实测可运行不等于正式兼容性承诺。
 - 尚未完成竞品和完整任务耗时比较，不能根据功能实现宣称更快或独创。
+
+## 拖动投放与托盘常驻（本轮）
+
+本轮移除了指针参照放置与位置图选择器（提交 03008b3、47cb48b 交付、从未发布），交付拖动投放与托盘常驻；交互决定与规格见 .scratch/single-window-placement/ 与 .scratch/tray-presence/。检查集合同步重写：删除 21 项旧 placement/pointer/reference 检查，新增 drag-placement-zones、drag-placement-state、drag-placement、drag-placement-settings、tray-presence 五项；共享回归全部保留。
+
+最终隔离全量运行：**71 通过 / 0 失败 / 0 跳过**（2026-10-27，命令 `powershell tools/run.ps1 -Check`，Windows 10 Pro 22H2，双屏 100% 缩放，工作树为本次交付的未提交状态；逐项输出未保留，以本记录汇总为准）。期间两次运行未计为有效验收结果：一次观察到浏览器持有前台并伴随真实键鼠活动，输入保护按设计拒绝注入；另一次运行中系统锁屏，此后输入类检查连锁失败。两次均未作为通过或失败依据。
+
+本轮修复的产品问题：托盘可用时 OpenForForeground 无法重新显示隐藏窗口；在 StateChanged 内同步改回窗口状态会使原生窗口停留在 iconic 而 WPF 误认为常规（改为拦截标题栏 WM_SYSCOMMAND，程序化收起全部走隐藏路径）；全局开关键仍按旧方式最小化到任务栏。检查侧修复：fixture position 命令参数错误导致子进程停止响应；single-instance 对刚唤起窗口的 UIA 空代理缓存（改为逐次重新解析句柄）；drag-placement 的前台取得改为零位移合成鼠标事件（SendInput，属合成输入，无可见输入效果，仅作用于检查进程与 fixture）加线程输入附着。
+
+未验证边界：原生拖动环路（真实鼠标拖动进入投放、松手提交、Esc/右键取消、屏幕边缘与 Windows 自身贴边的竞争、覆盖层与缩略图条的实际观感）属人工验收，本轮未运行；MOVESIZE 回调延迟对拖动起点快照精度的影响未实测；混合 DPI 跨屏分区与恢复沿用既有坐标合同、未新增实测；托盘图标的真实出现、左右键与 Explorer 重启重挂未自动化。旧入口移除后，此前其人工验收结论随之失效，不再作为本产品行为的证据。
+
+### 人工验收首轮（2026-10-27，交换主次键环境）
+
+用户以"鼠标左键功能设为右键"的环境实测拖动投放，功能端到端确认可用（分区出现、投放成功、缩略图正常）。过程中发现并修复四处问题，均属自动检查未覆盖的原生观察与渲染路径：
+
+1. 主键读取不感知交换映射：GetAsyncKeyState 与低级鼠标钩子看到的是物理按键，交换发生在更上层的消息翻译；改为按 SM_SWAPBUTTON 将主键映射到物理右键读取。这是用户环境里"从不进入投放状态"的直接原因。
+2. 覆盖层从未真正显示：分层弹出窗口创建后缺少 HWND_TOPMOST + SWP_SHOWWINDOW 的定位调用（放置反馈层有、新覆盖层遗漏），补齐后分区可见。
+3. 鼠标钩子丢弃注入标记事件：按键由鼠标驱动软件重映射注入时带 LLMHF_INJECTED，被过滤器全部忽略；改为鼠标事件不按注入过滤、同时接受两种释放消息，副键按下取消改由"结束时主键仍按住"的既有判定覆盖。Esc 仍走低级键盘钩子并保留注入过滤。
+4. 模板缩略图不填满卡片：缩微图固定 48×30 逻辑像素未缩放；改用 Viewbox 等比填满。
+
+拖动监视器内置 PANESET_DRAG_DEBUG=1 环境变量诊断日志（写入临时目录 paneset-drag-debug.log），默认关闭。以上四项修复以用户实机验证为准；自动套件的 71/71 结论来自修复前的构建，修复仅触及套件不覆盖的监视器与覆盖层路径，编译零警告。人工清单其余各项（取消、最大化恢复、跨屏、贴边竞争、托盘真实交互等）仍未执行。
+
+### 发版验证（2026-10-27，v0.3.0-preview.1 树）
+
+B 入口收起改为与托盘一致的隐藏路径（检查进程无托盘时走逐语句相同的回退）、版本号升至 0.3.0-preview.1 后，三次全量运行出现轮换的输入类失败（overview-viewport、quick-cancel-undo、overview-size-ui、overview、mouse-routing、quick-flow、quick-input、global-quick-input、quick-activation-failure 中的不同子集），证据显示用户会话活动与检查进程自身窗口的前台竞争，属仓库已记录、暂停追查的间歇输入类。全部失败项在同一最终树上逐个单跑均通过。当日早些时候的 71/71 全量通过来自此前树，与本树的差异仅上述一行回退等价改动与版本字符串。间歇输入类不因本轮发版标记为已修复。

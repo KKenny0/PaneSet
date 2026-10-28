@@ -1,62 +1,33 @@
-# 单窗放置：实施结果与验证
+# 单窗放置（拖动投放）：实施记录
 
-Status: ready-for-agent
-Progress: implemented; native-input-validation-blocked
+Status: ready-for-human
+Progress: implemented, checks passed
 
-实现基于 `eadec9b6aa1a40ae09b70c08ed2f433f6dad582b`，位于 `feat/windows-two-window`。本地规格为 `.scratch/single-window-placement/spec.md`；规格及其他预存未提交文档保持原文。本记录描述本次实现状态，不改写规格收敛轮及历史验收结果。
+基线：`47cb48bff7c830c467c3268568a08ab2e13e7756`。本文件记录拖动投放的实施；旧"位置图/指针参照放置"的实施记录保留在 git 历史（提交 03008b3、47cb48b 的版本），对应代码已随本轮移除。
 
-## 已实现的行为
+## 交付内容
 
-- 新增 `PlaceWindow`（动作 5），默认 `Ctrl+Alt+3`，可改绑、禁用；主面板提供备用按钮并显示本次唤起前捕获的源标题。
-- 小型位置图展示源标题和固定目标显示器，按原布局比例及成员顺序编号。支持点击、独立数字 1–9、Tab / Shift+Tab 与 Enter / Space；位置 10 以上可滚动到达。等待触发和弦全部释放后才接受位置输入，初始焦点不会默认提交。
-- Esc、失焦及再次触发取消尚未提交的请求。选择期间与整组排布、恢复、设置互斥；原生操作继续使用共享 pending 和 700 ms 等待反馈。
-- 主面板、A、B 的最终成功排布发布同一份不可变位置记录，包括无几何变化的成功。元数据失败保留旧记录并提示；旧成员关闭或手动调整不改变记录。
-- 使用记录中的物理可见边框坐标，仅移动和缩放源窗口。校验窗口身份、当前可见桌面及 GUID、目标设备/运行期标识、完整区域、工作区、有效 DPI 和显示配置代次；环境不符时停止。
-- 使用自有隐藏的每屏 DPI 感知 HWND 读取显示环境。源可跨屏，恢复回操作前的源屏及正常/最大化状态。普通激活失败时不修改几何；执行后前台丢失时反馈几何与前台结果，不重复抢焦点。
-- 位置记录、最近窗口组及 Undo 分开。单窗实际改变替换旧整组 Undo；无变化或修改前失败保留旧 Undo；退出最大化后定位失败仍可恢复。单窗恢复保留位置记录，整组恢复实际改变窗口才清除它。
-- 修改后的终局读回未知且身份仍有效时，保留带“结果未能确认”提示的单窗快照。已确认改变后身份失效时，用原身份快照替换旧 Undo，恢复安全跳过该身份；未能确认改变且身份失效时保留旧 Undo。
-- 最终可读状态若已被应用回退，不再报告位置成功；回到原状态时保留旧 Undo。
-- 配置保持版本 1。旧文件缺少新字段时在内存补默认；默认与旧自定义键重复时只禁用新动作。旧四项绑定与主题保留，加载不重写配置。外部注册、显式重复与保存失败沿用原事务和反馈。
+按 [spec.md](spec.md) 实施，交互决定见 [interaction-notes.md](interaction-notes.md)（Q1–Q16）。
 
-主要执行路径位于 `src/PaneSet/WindowPlacement.cs`、`PlacementEnvironment.cs`；选择器和入口位于 `PlacementWindow.cs`、`MainWindow.Placement.cs`。既有 `WindowManager` 继续持有执行锁、pending、恢复快照和位置记录。
+- `LayoutEngine.Zones`：五种布局模板（左右两栏、三等分、主辅、上下两栏、2×2 网格）在任一工作区的整数分区；上下两栏为新增的行分区。
+- `DragPlacementStateMachine`（DragPlacement.cs）：纯交互状态机——进入投放（按住辅助键 + 左键拖动 + 非缩放）、指针命中分区、缩略图划过换模板（粘滞）、取消（Esc/右键永久取消）、提交判定（必须观察到左键释放且结束时左键已松开、辅助键仍按住、命中分区、无取消、无缩放、起手为鼠标拖动）。不确定一律不投放。
+- `DragPlacementMonitor`（DragPlacementMonitor.cs）：原生观察层。WinEvent（移动/缩放循环开始/结束）界定会话；会话内安装低级键盘/鼠标钩子记录 Esc、右键、左键释放（忽略注入事件）；15ms 轮询辅助键（与配置掩码精确相等，应用自身的组合不受影响）、指针、所在屏；跨屏换屏时按新工作区现算分区与缩略图。
+- `DragPlacementOverlay`：置顶、分层、点击穿透的纯视觉层（沿用放置反馈层的窗口样式）：分区描边、悬停高亮、顶部居中五模板缩略图；不取焦点、不消费输入。
+- `WindowManager.TryBeginDragSession / PlaceDraggedAsync / IdentityAlive`：会话起点捕获拖动前 `WINDOWPLACEMENT` 与状态；执行复用 PlaceCore（可见边框换算、读回验证、最大化先还原、pending 互斥），恢复快照注入拖动开始时的数据——恢复回到拖动前，而非松手前的中间位置。
+- 设置：新增"拖动投放辅助键"（默认 Shift，可选任意修饰键组合，按住检测不经全局注册）；`ShortcutAction.PlaceWindow` 移除；旧配置中的 `placeWindow` 键逐字段解析跳过，其余绑定、外观、拖动键全部保留。
+- 移除：PlacementWindow（位置图选择器）、PointerPlacement（指针参照放置）、ReferencePositionPreview、最近成功布局位置记录（recentPositions）及 PublishPositions/PlaceAsync/PlaceAtReferenceAsync 全链路；主面板"选择其他位置…"按钮与源窗口跟踪移除。
 
-## 验证结果
+## 与规格的偏差
 
-构建使用仓库外的独立 artifacts 目录，避免覆盖正在运行的可执行文件。最近一次功能构建为 0 警告、0 错误。
+- 投放由任意移动/缩放拖动 + 按住辅助键触发，不区分标题栏：缩放拖动因窗口尺寸变化被状态机排除（最大化窗口拖离标题栏的尺寸变化除外，属预期投放路径）。
+- Esc 取消依赖低级键盘钩子观察，而非仅结束时按钮电平：顾问复核指出 WinEvent 回调延迟会造成“Esc 后松开”被误判为提交，已按“全程记录取消原因、不确定不投放”实现。
+- 主键按 SM_SWAPBUTTON 映射到物理按键读取（GetAsyncKeyState 与低级钩子看到物理层，交换在其上）；鼠标事件不按注入标记过滤（驱动级按键重映射会注入真实输入），副键取消由“结束时主键仍按住”覆盖。
+- 监视器内置 PANESET_DRAG_DEBUG=1 环境变量诊断日志（临时目录 paneset-drag-debug.log），默认关闭。
 
-| 检查 | 结果与边界 |
-| --- | --- |
-| `placement` | 通过。真实 fixture HWND 的普通/最大化放置及恢复、其他窗口不动、旧成员关闭后继续使用位置；在实际双屏 96/96 DPI 环境跨屏通过。前台观察被替代，不是实际输入通过。 |
-| `placement-guards` | 通过。身份、记录版本、显示环境、桌面及查询失败等守卫；环境故障为注入观察，不能视作物理拓扑或混合 DPI 验收。 |
-| `placement-undo` | 通过。实际改变、无变化、激活拒绝、最大化部分失败、未知读回、恢复重试、慢激活/原生等待互斥；补充已确认改变后关闭、未确认改变时关闭、最终回退原状态三种结果。 |
-| `placement-flow` | 通过。入口/取消/互斥/最近组保持、源捕获、和弦及编号规则、11 位置及小窗口截图；属于命令路由和 UI 检查，真实前台交接另测。 |
-| `placement-settings` | 通过。旧配置、重复/外部冲突、保存失败、改绑、禁用、重启释放及设置界面。 |
-| 共享定向检查 | `screen-arrange`、`screen-guard`、`recent-group`、`recent-group-noop`、`recent-group-failures`、`shortcut-settings`、`settings-binding-replace`、`settings-ui`、`maximized`、`ui` 通过。 |
-| `local-layout-routing` | 新增行曾导致完整可见行数降为 5，检查失败后将入口并入原操作行；复查为 6 行（viewport=332、row=54），正常和最小尺寸控制检查通过。 |
-| 完整检查尝试 | **25 PASS / 1 FAIL / 0 unavailable / 46 未运行**。`placement-input` 的鼠标严格命中保护拒绝输入：点击位置属于 Chrome，而非本次 fixture；立即停止完整检查，未继续输入用例。 |
+## 人工验收首轮修复（2026-10-27）
 
-完整检查发生于最后两项读回修正之前；修正后重新构建并定向运行 `placement-undo`、`placement`、`placement-flow`，均通过，另复查 `settings-ui` 通过。没有再次尝试真实输入，也没有把这些定向通过拼成完整检查通过。历史 quick-input 调查保持暂停，未声称修复。
+用户交换主次键环境实测发现四处问题并修复：主键交换映射（从不进入投放）、覆盖层缺少 HWND_TOPMOST+SWP_SHOWWINDOW 定位（分区不可见）、鼠标注入事件被过滤器丢弃（松手检测不到）、模板缩略图未填满（改 Viewbox）。详见 docs/VALIDATION.md 与人工清单。
 
-证据目录：`D:/VibeProject/diagnostics/paneset/single-window-placement-impl-eadec9b/`。完整输出为 `full.stdout.log`、`full.stderr.log`；单项检查保留时间戳日志和退出状态。截图位于其 `artifacts/`，包括位置图亮/暗主题、11 个位置、小窗口和主面板尺寸检查。
+## 检查
 
-原历史结果 **62 PASS / 1 FAIL / 3 unavailable / 0 未运行** 保持不变；旧的后续跨屏和人工结果也不被本轮覆盖。
-
-## Standards
-
-以实施起点 `eadec9b6aa1a40ae09b70c08ed2f433f6dad582b` 比较本功能暂存改动。提交前 HEAD 仍为起点，使用 `git diff --cached <起点> -- src tests .scratch/single-window-placement/implementation.md` 检查待提交增量。
-
-按 `AGENTS.md`、产品/Windows 执行边界和 code-review 的代码异味基线检查；没有发现待修正的文档化标准违反。改动分布于既有入口、注册、执行与测试边界，未增加服务或运行依赖。无可用分代理，两个审查轴由当前 agent 分开审查，另使用 Advisor；不声称进行了两个独立分代理的并行审查。
-
-## Spec
-
-已知实现问题已补回归并修正：主面板行数退化；确认改变后身份失效时旧 Undo 未替换；最终回退原状态仍报告位置成功。当前未发现其他确定的实现偏差。
-
-验证缺口仍有三项：真实热键→位置选择→源前台交接未通过；Windows 11 未验收；物理混合 DPI 与显示/桌面切换未验收。因此不能把本记录当作全量验收或发布就绪结论。T3 真实任务与拖动/缩放的效率比较也尚未执行。
-
-最终 Advisor 收到的审查包未包含补丁及规格正文，因此没有审查实现正确性或给出独立代码批准。其可见验证输出支持提交文件范围、预存文档/配置保持和原进程仍运行；它建议保留真实输入、最终版本完整覆盖及 Undo 身份保护的限制。当前 agent 已逐项检查这些边界，以上结论仍是当前 agent 的本地审查与测试记录。本次提交作为带明确验收缺口的可审查检查点。
-
-## 提交及后续验证范围
-
-本次提交仅包含功能代码、检查和此实施记录。预存规格、词汇表、产品/验证/试用文档与任务资料不纳入本次提交；不推送、不发布。用户配置和运行实例保持原样；旧 `eadec9b` 试用包不含本功能。
-
-后续应在用户可控的桌面完成真实输入及四窗人工验收，再补 Windows 11、混合 DPI 和环境切换。自动检查仍只允许受控 HWND，前台/焦点/按键/鼠标命中保护失败即停止。回退旧二进制时，如已主动保存新动作，先使用保存前配置副本或仅移除 `shortcuts.PlaceWindow` 字段，保留其他设置。
+已注册 `drag-placement-zones`、`drag-placement-state`、`drag-placement`、`drag-placement-settings`、`tray-presence`（与托盘规格共用）；旧 pointer/reference/placement 系列检查随功能移除，共享回归保留。最终隔离全量 71 通过 / 0 失败 / 0 跳过，记录见 docs/VALIDATION.md；运行中还修复了 OpenForForeground 对隐藏窗口不显示、StateChanged 同步改状态导致原生窗口卡 iconic、全局开关键仍用旧最小化三处产品问题。原生拖动环路的手感、贴边竞争、覆盖层视觉属人工验收，未运行。

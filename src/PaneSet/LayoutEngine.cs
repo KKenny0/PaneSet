@@ -2,10 +2,37 @@ namespace PaneSet;
 
 public readonly record struct WindowRect(int X, int Y, int Width, int Height);
 public enum ArrangementKind { Automatic, Columns, MainAndOthers, Grid }
+public enum ZoneTemplate { TwoColumns, ThreeColumns, MainAndSide, TwoRows, Grid }
 
 public static class LayoutEngine
 {
     public static WindowRect[] TwoColumns(WindowRect workArea, int gap = 12) => Arrange(workArea, 2, ArrangementKind.Columns, gap);
+
+    public static WindowRect[] Zones(WindowRect area, ZoneTemplate template, int gap = 12)
+    {
+        if (!Enum.IsDefined(template)) throw new ArgumentOutOfRangeException(nameof(template));
+        return template switch
+        {
+            ZoneTemplate.TwoColumns => Arrange(area, 2, ArrangementKind.Columns, gap),
+            ZoneTemplate.ThreeColumns => Arrange(area, 3, ArrangementKind.Columns, gap),
+            ZoneTemplate.MainAndSide => Arrange(area, 2, ArrangementKind.MainAndOthers, gap),
+            ZoneTemplate.TwoRows => Rows(area, 2, gap),
+            _ => Arrange(area, 4, ArrangementKind.Grid, gap),
+        };
+    }
+
+    private static WindowRect[] Rows(WindowRect area, int count, int gap)
+    {
+        if (count < 1 || gap < 0 || area.Width <= 0 || area.Height <= 0) throw new ArgumentOutOfRangeException(nameof(area), "工作区域无法容纳所选分区。");
+        var result = new List<WindowRect>();
+        for (int i = 0; i < count; i++)
+        {
+            var (top, height) = Partition(area.Height, count, i, gap);
+            result.Add(new(area.X, checked(area.Y + top), area.Width, height));
+        }
+        if (result.Any(r => r.Width <= 0 || r.Height <= 0)) throw new ArgumentOutOfRangeException(nameof(count), "工作区域过小，无法生成分区。");
+        return result.ToArray();
+    }
 
     public static WindowRect[] Arrange(WindowRect area, int count, ArrangementKind kind = ArrangementKind.Automatic, int gap = 12)
     {

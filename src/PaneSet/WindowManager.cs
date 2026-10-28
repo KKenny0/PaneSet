@@ -143,7 +143,6 @@ public sealed partial class WindowManager : IDisposable
 
     private OperationReport ApplyCore(WindowTarget[] targets, DisplayArea display, WindowRect[] layout, bool currentScreenOnly)
     {
-        var positions = CapturePositions(targets, display, layout);
         Snapshot[] originals;
         try
         {
@@ -214,8 +213,7 @@ public sealed partial class WindowManager : IDisposable
             }
         }
         lock (sync) if (!disposed && affected.Count > 0) { undo = affected; singleWindowUndo = false; }
-        var report = new OperationReport(outcomes);
-        return report.Success ? report with { Notice = PublishPositions(positions, targets) } : report;
+        return new OperationReport(outcomes);
     }
 
     private static bool DisplayMatches(DisplayArea display)
@@ -287,7 +285,6 @@ public sealed partial class WindowManager : IDisposable
         {
             var target = snapshot.Target;
             WindowStateInfo? before = null;
-            bool attempted = false, confirmedChange = false;
             try
             {
                 if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份变化，已跳过。");
@@ -301,14 +298,9 @@ public sealed partial class WindowManager : IDisposable
                 if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份变化，已跳过。");
                 before = ReadState(target);
                 if (single) ValidatePlacementRestore(snapshot);
-                attempted = true;
                 if (!Native.SetWindowPlacement(target.Handle, ref placement))
                     throw new System.ComponentModel.Win32Exception(System.Runtime.InteropServices.Marshal.GetLastWin32Error());
-                bool success = WaitFor(target, s =>
-                {
-                    if (s != before && IdentityMatches(target)) confirmedChange = true;
-                    return s == snapshot.State;
-                });
+                bool success = WaitFor(target, s => s == snapshot.State);
                 if (!success && IdentityMatches(target)) remaining.Add(snapshot);
                 outcomes.Add(new(target, success, success ? "已恢复" : "应用限制了恢复，可稍后重试。"));
             }
@@ -316,17 +308,6 @@ public sealed partial class WindowManager : IDisposable
             {
                 if (IdentityMatches(target)) remaining.Add(snapshot);
                 outcomes.Add(new(target, false, e.Message));
-            }
-            finally
-            {
-                if (!single && attempted && before != null)
-                {
-                    // A readable final state wins; otherwise retain earlier identity-validated evidence.
-                    bool changed = confirmedChange;
-                    try { changed = ReadState(target) != before; }
-                    catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
-                    if (changed) lock (sync) recentPositions = null;
-                }
             }
         }
         lock (sync) if (!disposed) undo = remaining;
@@ -341,7 +322,7 @@ public sealed partial class WindowManager : IDisposable
 
     public void Dispose()
     {
-        lock (sync) { if (disposed) return; disposed = true; known.Clear(); undo.Clear(); recentPositions = null; }
+        lock (sync) { if (disposed) return; disposed = true; known.Clear(); undo.Clear(); }
         placementEnvironment.Dispose();
         Native.UnhookWinEvent(hook);
         if (eventRoot.IsAllocated) eventRoot.Free();
