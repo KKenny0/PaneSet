@@ -83,7 +83,7 @@ public sealed partial class WindowManager : IDisposable
         long extended = Native.GetWindowLong(window, -20).ToInt64();
         if (pid == Environment.ProcessId || !Native.IsWindowVisible(window) || Native.IsIconic(window)
             || Native.GetWindow(window, 4) != 0 || (style & 0x40000) == 0 || (extended & 0x80) != 0
-            || (display != null && Native.MonitorFromWindow(window, 2) != display.Handle) || string.IsNullOrWhiteSpace(Native.Text(window))) return false;
+            || (display != null && Native.MonitorFromWindow(window, 2) != display.Handle) || string.IsNullOrWhiteSpace(Native.TextCached(window))) return false;
         if (Native.Cloaked(window, 14, out int cloaked, 4) != 0 || cloaked != 0) return false;
         if (!placementEnvironment.IsCurrent(window)) return false;
         var bounds = Native.Bounds(window);
@@ -92,6 +92,10 @@ public sealed partial class WindowManager : IDisposable
             || bounds.X > monitor.X || bounds.Y > monitor.Y || bounds.Width < monitor.Width || bounds.Height < monitor.Height;
     }
 
+    /// Identity check: pid + thread + class name + creation time must all match. Failure
+    /// semantics are identical to the managed-Process era: a dead pid (OpenProcess fails),
+    /// an access-denied process (GetProcessTimes/QueryFullProcessImageNameW fails), or any
+    /// mismatch simply means "not the same window" -- never an exception, never a pass.
     internal bool IdentityMatches(WindowTarget target)
     {
         lock (sync) if (disposed || !known.TryGetValue(target.Handle, out long token) || token != target.Generation) return false;

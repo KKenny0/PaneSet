@@ -162,7 +162,8 @@ internal static class Native
         {
             if (!GetProcessTimes(handle, out long creation, out _, out _, out _)) return false;
             startTicks = creation + 504911232000000000; // FILETIME epoch (1601) in .NET ticks (0001)
-            var path = new StringBuilder(1024);
+            var path = pathBuffer ??= new StringBuilder(1024);
+            path.Clear();
             uint size = (uint)path.Capacity;
             if (!QueryFullProcessImageNameW(handle, 0, path, ref size)) return true; // creation time alone still identifies
             string file = path.ToString();
@@ -172,6 +173,8 @@ internal static class Native
         }
         finally { CloseHandle(handle); }
     }
+
+    [ThreadStatic] private static StringBuilder? pathBuffer;
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] internal struct MonitorInfoExtended
     {
         public int Size; public Rect Monitor, Work; public uint Flags;
