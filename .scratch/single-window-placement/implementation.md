@@ -9,10 +9,10 @@ Progress: implemented, checks passed
 
 按 [spec.md](spec.md) 实施，交互决定见 [interaction-notes.md](interaction-notes.md)（Q1–Q16）。
 
-- `LayoutEngine.Zones`：五种布局模板（左右两栏、三等分、主辅、上下两栏、2×2 网格）在任一工作区的整数分区；上下两栏为新增的行分区。
+- `LayoutEngine.Zones`：六种布局模板（左右两栏、三等分、主辅、辅主、上下两栏、2×2 网格）在任一工作区的整数分区；上下两栏为新增的行分区，辅主为 2026-11-13 翻案新增的主辅水平镜像（`Mirror` 翻转 X 并反转分区顺序，保持空间从左到右枚举）。
 - `DragPlacementStateMachine`（DragPlacement.cs）：纯交互状态机——进入投放（按住辅助键 + 左键拖动 + 非缩放）、指针命中分区、缩略图划过换模板（粘滞）、取消（Esc/右键永久取消）、提交判定（必须观察到左键释放且结束时左键已松开、辅助键仍按住、命中分区、无取消、无缩放、起手为鼠标拖动）。不确定一律不投放。
 - `DragPlacementMonitor`（DragPlacementMonitor.cs）：原生观察层。WinEvent（移动/缩放循环开始/结束）界定会话；会话内安装低级键盘/鼠标钩子记录 Esc、右键、左键释放（忽略注入事件）；15ms 轮询辅助键（与配置掩码精确相等，应用自身的组合不受影响）、指针、所在屏；跨屏换屏时按新工作区现算分区与缩略图。
-- `DragPlacementOverlay`：置顶、分层、点击穿透的纯视觉层（沿用放置反馈层的窗口样式）：分区描边、悬停高亮、顶部居中五模板缩略图；不取焦点、不消费输入。
+- `DragPlacementOverlay`：置顶、分层、点击穿透的纯视觉层（沿用放置反馈层的窗口样式）：分区描边、悬停高亮、顶部居中模板缩略图（现六枚，96 dpi 逻辑宽约 674 px，2560 宽屏居中无压力）；不取焦点、不消费输入。
 - `WindowManager.TryBeginDragSession / PlaceDraggedAsync / IdentityAlive`：会话起点捕获拖动前 `WINDOWPLACEMENT` 与状态；执行复用 PlaceCore（可见边框换算、读回验证、最大化先还原、pending 互斥），恢复快照注入拖动开始时的数据——恢复回到拖动前，而非松手前的中间位置。
 - 设置：新增"拖动投放辅助键"（默认 Shift，可选任意修饰键组合，按住检测不经全局注册）；`ShortcutAction.PlaceWindow` 移除；旧配置中的 `placeWindow` 键逐字段解析跳过，其余绑定、外观、拖动键全部保留。
 - 移除：PlacementWindow（位置图选择器）、PointerPlacement（指针参照放置）、ReferencePositionPreview、最近成功布局位置记录（recentPositions）及 PublishPositions/PlaceAsync/PlaceAtReferenceAsync 全链路；主面板"选择其他位置…"按钮与源窗口跟踪移除。
@@ -27,6 +27,10 @@ Progress: implemented, checks passed
 ## 人工验收首轮修复（2026-10-27）
 
 用户交换主次键环境实测发现四处问题并修复：主键交换映射（从不进入投放）、覆盖层缺少 HWND_TOPMOST+SWP_SHOWWINDOW 定位（分区不可见）、鼠标注入事件被过滤器丢弃（松手检测不到）、模板缩略图未填满（改 Viewbox）。详见 docs/VALIDATION.md 与人工清单。
+
+## 辅主模板翻案（2026-11-13）
+
+用户以"布局方案对称闭环"为由推翻首版"反向变体不收录"的取舍，新增辅主（左 1/3 + 右 2/3）。`ZoneTemplate` 插入 `SideAndMain`（枚举序 3，原值 3–4 顺移；枚举仅进程内使用，无持久化，无兼容影响），目录第 4 项、标签"辅主（1/3 + 2/3）"；分区由主辅水平镜像得出。同轮检查：`drag-placement-zones` PASS（Debug 构建）；`drag-placement` 因本机前台被系统 `Windows.UI.Core.CoreWindow`（锁屏输入遮挡面 LockScreenInputOcclusionFrame 同源）占据而环境性 FAIL，与本改动无关——同批 16 个 FAIL 全为注入类环境病（quick-input 间歇问题同源），纯逻辑类 52 项全过。实机验收时应在受控前台环境复跑 `drag-placement`。
 
 ## 检查
 

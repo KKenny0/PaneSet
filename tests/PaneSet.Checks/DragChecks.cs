@@ -15,6 +15,7 @@ internal static partial class Program
         Equal(2, LayoutEngine.Zones(area, ZoneTemplate.TwoColumns).Length);
         Equal(3, LayoutEngine.Zones(area, ZoneTemplate.ThreeColumns).Length);
         Equal(2, LayoutEngine.Zones(area, ZoneTemplate.MainAndSide).Length);
+        Equal(2, LayoutEngine.Zones(area, ZoneTemplate.SideAndMain).Length);
         Equal(2, LayoutEngine.Zones(area, ZoneTemplate.TwoRows).Length);
         Equal(4, LayoutEngine.Zones(area, ZoneTemplate.Grid).Length);
         EqualZones(LayoutEngine.Arrange(area, 2, ArrangementKind.Columns), LayoutEngine.Zones(area, ZoneTemplate.TwoColumns));
@@ -26,6 +27,22 @@ internal static partial class Program
         var main = LayoutEngine.Zones(new WindowRect(0, 0, 1921, 1041), ZoneTemplate.MainAndSide);
         Equal((1921 - 12) * 2 / 3, main[0].Width);
         Equal(main[0].Width + main[1].Width + 12, 1921);
+
+        // The mirrored companion keeps both widths and swaps their left-to-right order on any
+        // work width, including negative-origin screens: the 1/3 side sits on the left.
+        foreach (var width in new[] { 1920, 1921, 2549 })
+        {
+            var source = LayoutEngine.Zones(new WindowRect(0, 0, width, 1040), ZoneTemplate.MainAndSide);
+            var flipped = LayoutEngine.Zones(new WindowRect(0, 0, width, 1040), ZoneTemplate.SideAndMain);
+            Equal(source.Length, flipped.Length);
+            Equal(source[0].Width, flipped[1].Width);
+            Equal(source[1].Width, flipped[0].Width);
+            Equal(width, flipped[0].X + flipped[0].Width + 12 + flipped[1].Width);
+        }
+        var mirror = LayoutEngine.Zones(new WindowRect(-2560, -1440, 2559, 1399), ZoneTemplate.SideAndMain);
+        Equal(-2560, mirror[0].X);
+        Equal(mirror[0].X + mirror[0].Width + 12, mirror[1].X);
+        Equal(true, mirror[1].Width > mirror[0].Width);
 
         // Two rows split vertically across the full width.
         var rows = LayoutEngine.Zones(area, ZoneTemplate.TwoRows);
@@ -46,11 +63,11 @@ internal static partial class Program
             foreach (var zone in LayoutEngine.Zones(new WindowRect(0, 0, 320, 200), template))
                 Equal(true, zone.Width > 0 && zone.Height > 0);
 
-        Equal(5, ZoneTemplateCatalog.Order.Distinct().Count());
+        Equal(6, ZoneTemplateCatalog.Order.Distinct().Count());
         foreach (var template in ZoneTemplateCatalog.Order) Equal(true, ZoneTemplateCatalog.Label(template).Length > 0);
 
         var slots = DragThumbSlotLayout.For(area, 1);
-        Equal(5, slots.Length);
+        Equal(6, slots.Length);
         for (int i = 0; i < slots.Length; i++)
         {
             Equal(true, slots[i].Rect.X >= area.X && slots[i].Rect.Y >= area.Y);
@@ -64,7 +81,7 @@ internal static partial class Program
     private static int ZoneTemplateCount(ZoneTemplate template) => template switch
     {
         ZoneTemplate.TwoColumns => 2, ZoneTemplate.ThreeColumns => 3, ZoneTemplate.MainAndSide => 2,
-        ZoneTemplate.TwoRows => 2, _ => 4,
+        ZoneTemplate.SideAndMain => 2, ZoneTemplate.TwoRows => 2, _ => 4,
     };
 
     private static void CheckDragState()

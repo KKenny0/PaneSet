@@ -3,13 +3,14 @@ namespace PaneSet;
 internal static class ZoneTemplateCatalog
 {
     public static readonly ZoneTemplate[] Order =
-        [ZoneTemplate.TwoColumns, ZoneTemplate.ThreeColumns, ZoneTemplate.MainAndSide, ZoneTemplate.TwoRows, ZoneTemplate.Grid];
+        [ZoneTemplate.TwoColumns, ZoneTemplate.ThreeColumns, ZoneTemplate.MainAndSide, ZoneTemplate.SideAndMain, ZoneTemplate.TwoRows, ZoneTemplate.Grid];
 
     public static string Label(ZoneTemplate template) => template switch
     {
         ZoneTemplate.TwoColumns => "左右两栏",
         ZoneTemplate.ThreeColumns => "三等分栏",
         ZoneTemplate.MainAndSide => "主辅（2/3 + 1/3）",
+        ZoneTemplate.SideAndMain => "辅主（1/3 + 2/3）",
         ZoneTemplate.TwoRows => "上下两栏",
         ZoneTemplate.Grid => "2×2 网格",
         _ => throw new ArgumentOutOfRangeException(nameof(template)),

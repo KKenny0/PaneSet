@@ -2,7 +2,7 @@ namespace PaneSet;
 
 public readonly record struct WindowRect(int X, int Y, int Width, int Height);
 public enum ArrangementKind { Automatic, Columns, MainAndOthers, Grid }
-public enum ZoneTemplate { TwoColumns, ThreeColumns, MainAndSide, TwoRows, Grid }
+public enum ZoneTemplate { TwoColumns, ThreeColumns, MainAndSide, SideAndMain, TwoRows, Grid }
 
 public static class LayoutEngine
 {
@@ -16,9 +16,24 @@ public static class LayoutEngine
             ZoneTemplate.TwoColumns => Arrange(area, 2, ArrangementKind.Columns, gap),
             ZoneTemplate.ThreeColumns => Arrange(area, 3, ArrangementKind.Columns, gap),
             ZoneTemplate.MainAndSide => Arrange(area, 2, ArrangementKind.MainAndOthers, gap),
+            ZoneTemplate.SideAndMain => Mirror(Arrange(area, 2, ArrangementKind.MainAndOthers, gap), area),
             ZoneTemplate.TwoRows => Rows(area, 2, gap),
             _ => Arrange(area, 4, ArrangementKind.Grid, gap),
         };
+    }
+
+    /// Horizontally flips zones within their work area: the mirrored companion of a template
+    /// keeps every width and height while reversing the left-to-right reading order, so zones
+    /// stay enumerated spatially (left to right) like every other template.
+    private static WindowRect[] Mirror(WindowRect[] zones, WindowRect area)
+    {
+        var result = new WindowRect[zones.Length];
+        for (int i = 0; i < zones.Length; i++)
+        {
+            var zone = zones[zones.Length - 1 - i];
+            result[i] = zone with { X = checked(area.X + area.Width - (zone.X - area.X) - zone.Width) };
+        }
+        return result;
     }
 
     private static WindowRect[] Rows(WindowRect area, int count, int gap)
