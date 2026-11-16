@@ -61,14 +61,14 @@ public sealed partial class WindowManager : IDisposable
             {
                 if (!Eligible(window, display)) return true;
                 uint thread = Native.GetWindowThreadProcessId(window, out uint pid);
-                using var process = System.Diagnostics.Process.GetProcessById((int)pid);
+                if (!Native.ProcessIdentity(pid, out long started, out string name)) return true;
                 long token;
                 lock (sync)
                 {
                     if (!known.TryGetValue(window, out token)) known[window] = token = ++generation;
                 }
-                windows.Add(new(window, pid, thread, process.StartTime.ToUniversalTime().Ticks,
-                    Native.Text(window, true), token, process.ProcessName, Native.Text(window)));
+                windows.Add(new(window, pid, thread, started,
+                    Native.TextCached(window, true), token, name, Native.TextCached(window)));
             }
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or ArgumentException or InvalidOperationException) { }
             return true;
@@ -92,17 +92,12 @@ public sealed partial class WindowManager : IDisposable
             || bounds.X > monitor.X || bounds.Y > monitor.Y || bounds.Width < monitor.Width || bounds.Height < monitor.Height;
     }
 
-    private bool IdentityMatches(WindowTarget target)
+    internal bool IdentityMatches(WindowTarget target)
     {
         lock (sync) if (disposed || !known.TryGetValue(target.Handle, out long token) || token != target.Generation) return false;
         uint thread = Native.GetWindowThreadProcessId(target.Handle, out uint pid);
-        if (pid != target.ProcessId || thread != target.ThreadId || Native.Text(target.Handle, true) != target.ClassName) return false;
-        try
-        {
-            using var process = System.Diagnostics.Process.GetProcessById((int)pid);
-            return process.StartTime.ToUniversalTime().Ticks == target.Started;
-        }
-        catch (Exception e) when (e is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception) { return false; }
+        if (pid != target.ProcessId || thread != target.ThreadId || Native.TextCached(target.Handle, true) != target.ClassName) return false;
+        return Native.ProcessIdentity(pid, out long started, out _) && started == target.Started;
     }
 
     private sealed record Snapshot(WindowTarget Target, WindowStateInfo State, Native.Placement Placement, DisplayArea Display, DisplayArea Destination)

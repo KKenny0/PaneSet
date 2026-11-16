@@ -54,6 +54,15 @@ internal static class Native
     [DllImport("user32.dll", SetLastError = true)] internal static extern bool UnhookWindowsHookEx(nint hook);
     [DllImport("user32.dll")] internal static extern nint CallNextHookEx(nint hook, int code, nint wparam, nint lparam);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] internal static extern nint GetModuleHandleW(string? module);
+
+    // Process identity without the managed Process object: one OpenProcess handle per query,
+    // closed immediately, no Process component allocation. Used by window enumeration and
+    // identity checks that run per window per poll.
+    [DllImport("kernel32.dll", SetLastError = true)] internal static extern nint OpenProcess(uint access, bool inherit, uint process);
+    [DllImport("kernel32.dll", SetLastError = true)] internal static extern bool CloseHandle(nint handle);
+    [DllImport("kernel32.dll")] internal static extern bool GetProcessTimes(nint handle, out long creation, out long exit, out long kernel, out long user);
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)] internal static extern bool QueryFullProcessImageNameW(nint handle, uint flags, System.Text.StringBuilder name, ref uint size);
+    internal const uint ProcessQueryLimitedInformation = 0x1000;
     [StructLayout(LayoutKind.Sequential)] internal struct LowLevelKeyboardHook { public uint Key, Scan, Flags, Time; public nint Extra; }
     [StructLayout(LayoutKind.Sequential)] internal struct LowLevelMouseHook { public Point Position; public uint MouseData, Flags, Time; public nint Extra; }
     internal const int KeyboardHook = 13, MouseHook = 14;
@@ -126,6 +135,42 @@ internal static class Native
         var value = new StringBuilder(1024);
         if (className) GetClassName(window, value, value.Capacity); else GetWindowText(window, value, value.Capacity);
         return value.ToString();
+    }
+
+    /// Window text on a reused thread-local buffer; window enumeration asks for every window's
+    /// title twice per pass and does not need a fresh 2 KB builder each time.
+    [ThreadStatic] private static StringBuilder? textBuffer;
+    internal static string TextCached(nint window, bool className = false)
+    {
+        var value = textBuffer ??= new StringBuilder(1024);
+        value.Clear();
+        if (className) GetClassName(window, value, value.Capacity); else GetWindowText(window, value, value.Capacity);
+        return value.ToString();
+    }
+
+    /// Process creation time in the same units Process.StartTime.ToUniversalTime().Ticks reports,
+    /// plus the executable name without the ".exe" suffix, matching Process.ProcessName.
+    /// GetProcessTimes returns FILETIME (100 ns ticks since 1601-01-01); .NET ticks use
+    /// 0001-01-01, so the 1600-year offset is added to keep WindowTarget.Started byte-identical
+    /// to the values the managed Process path produced before. The enumeration check pins this.
+    internal static bool ProcessIdentity(uint pid, out long startTicks, out string name)
+    {
+        startTicks = 0; name = "";
+        nint handle = OpenProcess(ProcessQueryLimitedInformation, false, pid);
+        if (handle == 0) return false;
+        try
+        {
+            if (!GetProcessTimes(handle, out long creation, out _, out _, out _)) return false;
+            startTicks = creation + 504911232000000000; // FILETIME epoch (1601) in .NET ticks (0001)
+            var path = new StringBuilder(1024);
+            uint size = (uint)path.Capacity;
+            if (!QueryFullProcessImageNameW(handle, 0, path, ref size)) return true; // creation time alone still identifies
+            string file = path.ToString();
+            int dot = file.LastIndexOf('.'), slash = Math.Max(file.LastIndexOf('\\'), file.LastIndexOf('/'));
+            name = dot > slash ? file[(slash + 1)..dot] : file[(slash + 1)..];
+            return true;
+        }
+        finally { CloseHandle(handle); }
     }
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)] internal struct MonitorInfoExtended
     {

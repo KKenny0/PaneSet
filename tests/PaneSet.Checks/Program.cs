@@ -90,6 +90,16 @@ internal static partial class Program
             using var manager = new WindowManager();
             var targets = manager.ListWindows(WindowManager.DisplayFor(fixture.Handles[0]));
             Equal(3, targets.Count(t => fixture.Handles.Contains(t.Handle)));
+            // The pinvoke identity path must report exactly what the managed Process object
+            // reported before it: creation time in UTC ticks and the suffix-stripped exe name.
+            // If these ever diverge, WindowTarget identity semantics silently change.
+            foreach (var target in targets.Where(t => fixture.Handles.Contains(t.Handle)))
+            {
+                using var process = System.Diagnostics.Process.GetProcessById((int)target.ProcessId);
+                Equal(process.StartTime.ToUniversalTime().Ticks, target.Started);
+                Equal(process.ProcessName, target.Application);
+                Equal(true, manager.IdentityMatches(target));
+            }
         }),
         ("arrange", async () =>
         {
