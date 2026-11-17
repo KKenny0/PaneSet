@@ -3,6 +3,8 @@
   <h1>PaneSet</h1>
   <p><strong>Quickly gather windows to compare, pick a screen, and tile them in one go — restore with a single shortcut when you're done.</strong></p>
   <p>English | <a href="README_zh.md">简体中文</a></p>
+  <p><img src="docs/images/readme/hero.gif" alt="Animated concept demo: summon the PaneSet panel, check two windows, tile them side by side, and restore with one shortcut" width="439" height="209" /><br />
+  <sub>Concept demo (generated illustration, not a real screen capture)</sub></p>
   <p>
     When you have a cluttered desktop and just need to cross-reference two or three documents, dragging and resizing windows one by one is tedious.<br />
     PaneSet doesn't force you into rigid window management rules or pre-configured workspaces: pick what you need right now, tile them onto any screen, and put them back when you're finished.
@@ -27,6 +29,9 @@ To build from source, double-click [run.cmd](run.cmd) in the root directory.
 ## How to Use
 
 ### 1. Core Workflow: Pick & Tile Across Displays
+
+<p align="center"><img src="docs/images/readme/hero.gif" alt="Concept demo of the core workflow: panel, window selection, tiling, restore" width="439" height="209" /><br /><sub>Concept demo (generated illustration, not a real screen capture)</sub></p>
+
 1. **Open Panel**: Press `Ctrl+Alt+Space` to summon the main panel (the currently active window is pre-selected).
 2. **Select Windows**: Check the windows you want to compare (supports multiple screens; search by app name or window title; numbers indicate layout order).
 3. **Choose Layout**:
@@ -36,11 +41,20 @@ To build from source, double-click [run.cmd](run.cmd) in the root directory.
 5. **One-Click Restore**: Done comparing? Press `Ctrl+Alt+Z` (or click "Restore last layout" in the panel) to instantly return all affected windows to their original positions, sizes, and screens.
 
 ### 2. Single-Screen Shortcuts (Fast Path)
+
+<p align="center"><img src="docs/images/readme/quick-pick.gif" alt="Concept demo of the thumbnail quick pick: select windows visually from a card grid, then tile" width="432" height="213" /><br /><sub>Concept demo (generated illustration, not a real screen capture)</sub></p>
+
 If you only need to organize windows on your active screen without opening the full panel:
 - **`Ctrl+Alt+1` (Auto Tile)**: Instantly tiles all visible windows on the active screen.
 - **`Ctrl+Alt+2` (Thumbnail Quick Pick)**: Opens a compact thumbnail grid for the current screen. Even windows buried completely behind others can be spotted and selected visually. Press `Enter` to tile, or `Esc` to cancel.
 
-### 3. Tweak the Previous Selection (Recent Group)
+### 3. Drag to Place (Single Window)
+
+<p align="center"><img src="docs/images/readme/drag-placement.gif" alt="Concept demo of drag placement: hold Shift while dragging a window to reveal drop zones and template thumbnails" width="439" height="216" /><br /><sub>Concept demo (generated illustration, not a real screen capture)</sub></p>
+
+Hold the assist key (default `Shift`, customizable) and drag any window's title bar: drop zones and a strip of six layout-template thumbnails appear on the screen under the pointer — equal columns, thirds, main-side and its mirrored variant, stacked rows, and a 2×2 grid. Sweep a thumbnail to switch templates, release the mouse to drop the window into the highlighted zone. Only the dragged window moves; whatever occupied the zone stays behind.
+
+### 4. Tweak the Previous Selection (Recent Group)
 If you want to swap the order or switch the layout of the windows you just arranged, open the panel and click **"Tweak Recent Group"** to reload the last members and settings without hunting for windows again.
 
 ---
