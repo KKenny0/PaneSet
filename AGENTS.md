@@ -8,7 +8,7 @@
 
 ### Issue tracker
 
-任务和规格使用本地 Markdown，位于 .scratch/<feature>/。读写任务前查看 docs/agents/issue-tracker.md。
+任务和规格使用本地 Markdown，位于 .scratch/<feature>/。读写任务前查看 docs/agents/issue-tracker.md。.scratch/ 是受版本管理的任务状态：不得 stash、reset 或检出覆盖用户未提交的 .scratch 修改；查看状态只用只读命令（git status/diff/log）。
 
 ### Triage labels
 
