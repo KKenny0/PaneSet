@@ -111,7 +111,7 @@ internal sealed class DragPlacementOverlay : IDisposable
         var work = new WindowRect(0, 0, 96, 60);
         WindowRect[] zones;
         try { zones = LayoutEngine.Zones(work, template, 4); }
-        catch (ArgumentOutOfRangeException) { zones = [work]; }
+        catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException) { zones = [work]; }
         foreach (var zone in zones)
         {
             var cell = new Border

@@ -73,6 +73,17 @@ public sealed partial class WindowManager : IDisposable
             catch (Exception e) when (e is System.ComponentModel.Win32Exception or ArgumentException or InvalidOperationException) { }
             return true;
         }, 0);
+        // The destroy hook depends on the registering thread's message pump; missed events
+        // would otherwise leave dead hwnd tokens in `known` forever (slow unbounded growth
+        // over days of use). Prune here while we already walk the desktop.
+        lock (sync)
+        {
+            if (!disposed)
+            {
+                nint[] dead = known.Where(pair => !Native.IsWindow(pair.Key)).Select(pair => pair.Key).ToArray();
+                foreach (var hwnd in dead) known.Remove(hwnd);
+            }
+        }
         return windows;
     }
 
@@ -113,6 +124,11 @@ public sealed partial class WindowManager : IDisposable
     private List<Snapshot> undo = [];
     private Task<OperationReport>? operation;
     public bool HasUndo { get { lock (sync) return undo.Count > 0; } }
+    /// Preview of what Undo would affect right now, so the UI can announce it *before*
+    /// the user commits (silent overwrite by single-window drop is the top trust risk).
+    public int UndoCount { get { lock (sync) return undo.Count; } }
+    public bool UndoIsSingle { get { lock (sync) return singleWindowUndo && undo.Count > 0; } }
+    public string? UndoSingleTitle { get { lock (sync) return singleWindowUndo && undo.Count == 1 ? undo[0].Target.Title : null; } }
     public bool HasPending { get { lock (sync) return operation != null; } }
     public bool CanCollect { get { lock (sync) return operation?.IsCompleted == true; } }
 

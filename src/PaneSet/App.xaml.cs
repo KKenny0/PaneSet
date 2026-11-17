@@ -24,6 +24,23 @@ public partial class App : Application
         reopen = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\PaneSet.Reopen");
         instance = new Mutex(true, "Local\\PaneSet.Instance", out bool first);
         if (!first) { reopen.Set(); Shutdown(0); return; }
+        // Last-resort handler for exceptions that escape the UI thread (timer ticks, routed
+        // events, async void continuations). Without this a single stray exception kills the
+        // process: tray gone, restore records gone, drag placement silently dead.
+        DispatcherUnhandledException += (_, e) =>
+        {
+            DiagnosticsLog.Write(ShortcutSettings.DefaultPath, "ui-unhandled", e.Exception);
+            // Keep the process alive whenever the main window still exists: without a live
+            // tray process the global hotkeys and the restore records are silently gone.
+            // The balloon is best-effort; being rate-limited it cannot spam on cascades.
+            if (MainWindow is MainWindow { ShutdownSafe: true } main)
+            {
+                main.TrayNotify("PaneSet 遇到错误已自动恢复，可继续使用；详情见日志。");
+                e.Handled = true;
+            }
+        };
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            DiagnosticsLog.Write(ShortcutSettings.DefaultPath, "domain-unhandled", (Exception)e.ExceptionObject);
         WindowManager? manager = null;
         try
         {

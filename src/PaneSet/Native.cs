@@ -75,6 +75,13 @@ internal static class Native
     {
         public uint Size; public nint Window; public uint Id, Flags, Message; public nint Icon;
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string Tip;
+        // Full modern layout: dwState/dwStateMask (IE5), szInfo, uTimeout/uVersion union,
+        // dwInfoFlags, guidItem (Vista), szInfoTitle -- offsets must match shellapi.h exactly.
+        public uint State, StateMask;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string Info;
+        public uint TimeoutOrVersion, InfoFlags;
+        public Guid GuidItem;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string InfoTitle;
     }
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern bool Shell_NotifyIcon(int message, ref NotifyIconData data);

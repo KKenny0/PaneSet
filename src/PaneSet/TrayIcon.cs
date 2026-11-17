@@ -17,6 +17,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly nint icon;
     private readonly HwndSource? source;
     private bool added;
+    private long lastNotify;
 
     public bool Created => added;
 
@@ -54,6 +55,24 @@ internal sealed class TrayIcon : IDisposable
             Message = CallbackMessage, Icon = icon, Tip = "PaneSet"
         };
         return Native.Shell_NotifyIcon(0, ref data);
+    }
+
+    /// Balloon notification via NIF_INFO, rate-limited to one per minute so a cascading
+    /// failure cannot spam balloons. Returns false when the tray is absent or the call
+    /// fails -- callers treat that as "fall back to other channels".
+    public bool Notify(string message)
+    {
+        if (!added) return false;
+        long now = Environment.TickCount64;
+        if (now - lastNotify < 60_000) return true;
+        lastNotify = now;
+        var data = new Native.NotifyIconData
+        {
+            Size = (uint)Marshal.SizeOf<Native.NotifyIconData>(), Window = window, Id = 1,
+            Flags = 0x10, // NIF_INFO
+            Info = message, InfoTitle = "PaneSet", InfoFlags = 2u // NIIF_WARNING
+        };
+        return Native.Shell_NotifyIcon(1, ref data);
     }
 
     private nint Receive(nint handle, int message, nint wparam, nint lparam, ref bool handled)

@@ -53,7 +53,7 @@ internal sealed class OverviewSelection
             return new(selected.Count >= 2 && !invalid && fits,
                 Array.AsReadOnly(invalid ? [] : areas.Take(selected.Count).ToArray()), message);
         }
-        catch (ArgumentOutOfRangeException e) { return new(false, Array.Empty<WindowRect>(), e.Message); }
+        catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException) { return new(false, Array.Empty<WindowRect>(), e.Message); }
     }
 
     public IReadOnlyList<Item> Filter(string query) => Candidates.Where(i =>

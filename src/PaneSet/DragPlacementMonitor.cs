@@ -171,7 +171,7 @@ internal sealed class DragPlacementMonitor : IDisposable
     private WindowRect[] Zones(WindowRect work)
     {
         try { return LayoutEngine.Zones(work, machine.ActiveTemplate); }
-        catch (ArgumentOutOfRangeException) { return []; }
+        catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException) { return []; }
     }
 
     private static DragThumbSlot[] Slots(WindowRect work, double scale) => DragThumbSlotLayout.For(work, scale);

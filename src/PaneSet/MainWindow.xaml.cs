@@ -28,6 +28,9 @@ public partial class MainWindow : Window
     private QuickSelectWindow? selectionWindow;
     private ArrangementKind quickLayout = ArrangementKind.Automatic;
     private bool updating, busy, arranging, exitRequested, layoutUsable, closed;
+    /// Read-only view for App's last-resort exception handler: a closed window must not be
+    /// touched (hooks disposed, HWND gone), but the process should still be kept alive.
+    internal bool ShutdownSafe => !closed;
     private readonly bool trayEnabled;
     private sealed record WindowGroup(WindowTarget[] Targets, DisplayArea Destination, ArrangementKind Layout);
     private WindowGroup? recentGroup, requestedGroup;
@@ -78,6 +81,12 @@ public partial class MainWindow : Window
             if ((busy || manager.HasPending) && MessageBox.Show(this,
                 "目标窗口仍未响应。退出后无法恢复这次排布，目标稍后仍可能被移动。是否退出？",
                 "退出 PaneSet", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            { e.Cancel = true; exitRequested = false; return; }
+            // Restore records live only in-process: exiting silently voids the "arrange now,
+            // restore later" promise. Confirm before dropping an unconsumed restore point.
+            if (manager.HasUndo && MessageBox.Show(this,
+                $"退出后将无法用 {RestoreKeyLabel()} 复原上次排布（{manager.UndoCount} 扇窗口）。仍要退出？",
+                "退出 PaneSet", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
             { e.Cancel = true; exitRequested = false; }
         };
         SizeChanged += (_, _) => UpdateResponsiveLayout();
@@ -91,6 +100,13 @@ public partial class MainWindow : Window
             else if (key == Key.Escape) { CollapseToTray(); e.Handled = true; }
         };
         StatusText.Text = "可选择各屏幕上被遮挡的窗口。收起后仍在运行，退出会清除恢复记录。";
+    }
+
+    internal bool TrayNotify(string message)
+    {
+        if (closed || tray?.Created != true) return false;
+        try { return tray.Notify(message); }
+        catch (Exception e) when (e is InvalidOperationException or Win32Exception) { return false; }
     }
 
     private void UpdateResponsiveLayout()
@@ -226,6 +242,19 @@ public partial class MainWindow : Window
         RecentButton.IsEnabled = available && recentGroup != null;
         ApplyButton.IsEnabled = available && selected.Count >= 2 && layoutUsable;
         UndoButton.IsEnabled = available && manager.HasUndo;
+        // Dynamic label announces what Undo would affect BEFORE the user commits -- the
+        // single-window drop silently replaces the group record (top trust risk in review).
+        if (manager.UndoIsSingle && manager.UndoSingleTitle is { Length: > 0 } single)
+        {
+            string trimmed = single.Length > 20 ? single[..20] : single;
+            UndoButton.Content = "恢复上次投放（" + trimmed + "）";
+            UndoButton.ToolTip = "恢复这一扇窗口到投放前的位置。只保留一步恢复；整组排布的恢复记录已被本次投放替换。";
+        }
+        else
+        {
+            UndoButton.Content = manager.HasUndo ? "恢复上次排布（" + manager.UndoCount + " 扇）" : "恢复上次排布";
+            UndoButton.ToolTip = "恢复上一次实际改变的排布或单窗投放（只保留一步恢复）。";
+        }
         RefreshButton.IsEnabled = DisplayPicker.IsEnabled = LayoutPicker.IsEnabled = available;
         SwapButton.IsEnabled = available && selected.Count >= 2;
         SwapButton.Content = selected.Count > 2 ? "轮换顺序" : "交换左右";
@@ -261,7 +290,7 @@ public partial class MainWindow : Window
             }
             if (!layoutUsable) StatusText.Text = "窗口尺寸过小，请减少选择或改用网格。";
         }
-        catch (ArgumentOutOfRangeException e) { StatusText.Text = e.Message; }
+        catch (Exception e) when (e is ArgumentOutOfRangeException or OverflowException) { StatusText.Text = e.Message; }
         finally { UpdateSelectionSummary(); }
     }
 
@@ -428,11 +457,34 @@ public partial class MainWindow : Window
         else if (report.Success && arranging)
         {
             StatusText.Text = "已排布。从托盘图标或快捷键打开 PaneSet，使用恢复键或按钮恢复。" + report.Notice;
+            // The panel collapses immediately, so the status-bar line above is never seen;
+            // surface the escape rope in a floating note on the destination screen instead.
+            // NOTE: order matters -- CollapseToTray disposes the previous note, so the note
+            // must be created after it, not before.
             CollapseToTray();
+            ShowFloatNote("已排布 " + report.Windows.Count + " 扇 · " + RestoreKeyLabel() + " 一键复原");
         }
         else if (!report.Success) { WindowState = System.Windows.WindowState.Normal; Activate(); }
+        else if (!arranging && !dragPlacing && report.Success && !IsVisible)
+        {
+            // Ctrl+Alt+Z with the panel collapsed previously restored windows with zero
+            // visible feedback; show the same floating note on the pointer's screen.
+            ShowFloatNote("已恢复 " + report.Windows.Count + " 扇原位");
+        }
     }
     private void UpdateShortcutHint() => ShortcutText.Text = (shortcuts?.Hint ?? "快捷键未启用") + $" · 按住 {ModifierLabel()} 拖动窗口投放 · Enter 排布 · Alt+S 轮换";
+    /// Live restore-key label for notes/labels; falls back to the default binding when
+    /// shortcuts are not active (probe mode), never hardcodes Ctrl+Alt+Z.
+    private string RestoreKeyLabel() => shortcuts?.BindingFor(ShortcutAction.Restore)?.ToString() ?? ShortcutSettings.Default(ShortcutAction.Restore).ToString();
+    /// Floating bottom note on the given (or pointer) screen -- the visible channel when
+    /// the panel is hidden. Reuses the drag-placement feedback layer; one note at a time.
+    private void ShowFloatNote(string message, DisplayArea? display = null)
+    {
+        if (closed) return;
+        dragFeedback?.Dispose();
+        try { dragFeedback = new PlacementFeedback(display ?? WindowManager.DisplayFor(0), null, message); }
+        catch (Exception e) when (e is InvalidOperationException or Win32Exception) { }
+    }
     private string ModifierLabel()
     {
         uint mask = shortcuts?.DragModifiers ?? ShortcutSettings.DefaultDragModifiers;
