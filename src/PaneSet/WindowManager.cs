@@ -211,11 +211,40 @@ public sealed partial class WindowManager : IDisposable
                     mutationStarted = true;
                 });
                 bool success = WaitFor(target, s => s.Bounds == rect && !s.Maximized);
+                // Mirror PlaceCore: crossing a DPI boundary can change the non-client frame after
+                // the first move, so an exact-rect miss with the window already on the target
+                // monitor earns one corrective re-issue when the source DPI differs.
+                if (!success && IdentityMatches(target) && Native.MonitorFromWindow(target.Handle, 2) == display.Handle)
+                {
+                    try
+                    {
+                        if (placementEnvironment.Capture(snapshot.Display).Dpi != placementEnvironment.Capture(display).Dpi)
+                        {
+                            SetVisibleBounds(target, rect, () =>
+                            {
+                                if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份发生变化。");
+                                if (!ContextMatches(target, snapshot.Display) || !Eligible(target.Handle)
+                                    || Native.Monitor(display.Handle).Work.Value != display.WorkArea)
+                                    throw new InvalidOperationException("窗口状态、桌面或显示器已改变，请刷新。");
+                                mutationStarted = true;
+                            });
+                            success = WaitFor(target, s => s.Bounds == rect && !s.Maximized);
+                        }
+                    }
+                    catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
+                }
                 outcomes.Add(new(target, success, success ? "已排布" : "未确认窗口达到预期布局；若窗口已改变，可尝试恢复。"));
                 if (success && IdentityMatches(target)) Native.SetWindowPos(target.Handle, 0, 0, 0, 0, 0, 0x13);
             }
             catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
-            { outcomes.Add(new(target, false, e.Message)); }
+            {
+                // ERROR_ACCESS_DENIED from SetWindowPos on an elevated window: same UIPI story
+                // as restore; name the admin cause for the arrangement path too.
+                bool elevated = e is System.ComponentModel.Win32Exception { NativeErrorCode: 5 };
+                outcomes.Add(new(target, false, elevated
+                    ? "该窗口以管理员权限运行，PaneSet 无法移动它，已跳过。"
+                    : e.Message));
+            }
         }
         if (mutationStarted)
         {
@@ -322,7 +351,12 @@ public sealed partial class WindowManager : IDisposable
             catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
                 if (IdentityMatches(target)) remaining.Add(snapshot);
-                outcomes.Add(new(target, false, e.Message));
+                // ERROR_ACCESS_DENIED from SetWindowPlacement on an elevated window: UIPI silently
+                // rejects the move; name the cause instead of a generic "try later".
+                bool elevated = e is System.ComponentModel.Win32Exception { NativeErrorCode: 5 };
+                outcomes.Add(new(target, false, elevated
+                    ? "该窗口以管理员权限运行，PaneSet 无法恢复它，已跳过。"
+                    : e.Message));
             }
         }
         lock (sync) if (!disposed) undo = remaining;
@@ -333,6 +367,29 @@ public sealed partial class WindowManager : IDisposable
     {
         if (!IdentityMatches(target)) throw new InvalidOperationException("窗口已关闭或身份发生变化。");
         return placementEnvironment.ReadState(target.Handle);
+    }
+
+    /// Count top-level minimized windows on any connected monitor -- purely informational for
+    /// the panel hint ("N minimized windows not listed"); shares Eligible's filter shape minus
+    /// the IsIconic exclusion, never throws into the UI.
+    public int CountMinimized()
+    {
+        int count = 0;
+        Native.EnumWindows((window, _) =>
+        {
+            try
+            {
+                Native.GetWindowThreadProcessId(window, out uint pid);
+                long style = Native.GetWindowLong(window, -16).ToInt64();
+                long extended = Native.GetWindowLong(window, -20).ToInt64();
+                if (pid != Environment.ProcessId && Native.IsWindowVisible(window) && Native.IsIconic(window)
+                    && (style & 0x40000) != 0 && (extended & 0x80) == 0
+                    && !string.IsNullOrWhiteSpace(Native.TextCached(window))) count++;
+            }
+            catch (Exception e) when (e is System.ComponentModel.Win32Exception or ArgumentException or InvalidOperationException) { }
+            return true;
+        }, 0);
+        return count;
     }
 
     public void Dispose()

@@ -566,3 +566,14 @@ B 入口收起改为与托盘一致的隐藏路径（检查进程无托盘时走
 验证：Debug 构建 0 警告 0 错误。逐项检查通过：arrange、restore、recent-group、tray-presence、single-instance、shortcuts、enumeration、drag-placement。appearance 两次失败均为同一环境性原因（Chrome 持有前台，注入守卫拒绝，PreparePickerHost 阶段即失败，未触达本轮改动路径），符合 AGENTS.md 记录的交互会话环境性失败，不作为回归证据；浮条与动态按钮文案的实际观感属人工验收范围，未运行。
 
 未验证边界：error.log 轮转、60 秒限频重复行为、浮条 4.5 秒时序在真实排布后的观感未实机验证（需要运行新构建的实例，当前用户实例仍为旧构建）；气泡编组与发送已用 --probe 探针在实机闭环（Marshal.SizeOf=968 断言、托盘创建、NIM_MODIFY+NIF_INFO 返回 true、气泡真实显示 3.5 秒，探针代码已移除）。混合 DPI、间歇输入类缺口不变。
+
+### B 梯队第一批：跨 DPI 重试、提权文案、最小化提示、去 A/B 代号（2026-11-18）
+
+- B1 ApplyCore 跨 DPI 二次重试：镜像 PlaceCore（WindowPlacement.cs:118-123）的既有逻辑——首移后 exact-rect 未达、窗口已在目标屏、且源/目标屏 DPI 不同时，重发一次 SetVisibleBounds 再 WaitFor。DPI 探测惰性执行（仅失败路径），同 DPI 环境 happy path 零新增开销；混合 DPI 分支本身仍无自动化覆盖（双屏同 96 DPI 环境），本批买的是排布/拖动两条路径的对称性。
+- B3 提权窗口文案：ApplyCore 与 RestoreCore 的 Win32Exception catch 增加 NativeErrorCode==5（ERROR_ACCESS_DENIED/UIPI）分支，报"该窗口以管理员权限运行，PaneSet 无法移动/恢复它，已跳过"，替代原通用失败文案。
+- B4 最小化窗口提示：WindowManager 新增 CountMinimized()（EnumWindows 计数 IsIconic 顶层窗口，共享 Eligible 过滤形状，永不抛入 UI）；主面板勾选计数区显示"另有 N 扇最小化窗口未列出"（N>0 时）。
+- A7 去 A/B 内部代号：主面板两个按钮 Content 改为"本屏全部排布"/"本屏选窗总览"；AutomationProperties.Name 未动（检查按 UIA 名匹配，不受影响，已核实无测试引用旧 Content）。
+
+验证（Debug 构建 0 警告 0 错误）：arrange/restore/three-window/cross-monitor/grid-windows/maximized/partial-failure/recent-group/quick-flow/overview/ui/shortcut-routing 全部通过。local-layout-keys 两次失败同签名（foreground=Chrome_WidgetWin_1 抢占，合成键盘注入被环境拒绝，focus=MainWindow），属 AGENTS.md 记录的交互会话环境性输入失败，与本批改动路径无关（本批未触及局部布局键路径）。
+
+未验证边界：混合 DPI 实机行为（环境不符，同前）；提权窗口文案需真实管理员窗口 fixture（提权进程 fixture 成本高，维持文档化设计边界）；CountMinimized 计数含其他虚拟桌面外的全部连接屏（与主列表候选范围一致性依赖 Eligible 同形过滤，未单测）。

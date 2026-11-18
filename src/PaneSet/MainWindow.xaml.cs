@@ -260,7 +260,11 @@ public partial class MainWindow : Window
         SwapButton.Content = selected.Count > 2 ? "轮换顺序" : "交换左右";
         AutomationProperties.SetName(SwapButton, selected.Count > 2 ? "轮换顺序" : "交换左右");
         WindowList.IsEnabled = available;
-        ChosenCount.Text = $"已选 {selected.Count} 扇";
+        // Minimalized windows are excluded by design (TRIAL/PRODUCT); without a word the list
+        // just looks broken to a user who minimized a browser and went looking for it.
+        int hidden = 0;
+        try { hidden = manager.CountMinimized(); } catch { }
+        ChosenCount.Text = hidden > 0 ? $"已选 {selected.Count} 扇 · 另有 {hidden} 扇最小化窗口未列出" : $"已选 {selected.Count} 扇";
     }
 
     private void UpdatePreview()

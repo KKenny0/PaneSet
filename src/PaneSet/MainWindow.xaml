@@ -66,9 +66,9 @@
             <TextBlock x:Name="BrandSubtitle" Text="选择窗口，安排到同一屏" FontSize="12" Foreground="{DynamicResource HeaderSub}" Margin="0,2,0,0"/></StackPanel>
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
-          <Button x:Name="ArrangeScreenButton" Content="A · 本屏全部" Click="ArrangeScreenClick" Padding="10,8"
+          <Button x:Name="ArrangeScreenButton" Content="本屏全部排布" Click="ArrangeScreenClick" Padding="10,8"
                   AutomationProperties.Name="排布本屏全部窗口" ToolTip="排布鼠标屏幕全部窗口；全局键优先采用前台应用所在屏幕"/>
-          <Button x:Name="QuickScreenButton" Content="B · 本屏选窗" Click="QuickScreenClick" Padding="10,8" Margin="8,0,0,0" Background="{DynamicResource Quick}" BorderBrush="{DynamicResource Line}"
+          <Button x:Name="QuickScreenButton" Content="本屏选窗总览" Click="QuickScreenClick" Padding="10,8" Margin="8,0,0,0" Background="{DynamicResource Quick}" BorderBrush="{DynamicResource Line}"
                   AutomationProperties.Name="本屏快速选窗" ToolTip="每次进入新选择；Enter 排布，Esc 取消"/>
         </StackPanel>
       </Grid>
