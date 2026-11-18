@@ -541,3 +541,28 @@ Windows 10 Pro 22H2、Build 19045、x64，交互会话 1。局部 .NET SDK 10.0.
 ### 发版验证（2026-10-27，v0.3.0-preview.1 树）
 
 B 入口收起改为与托盘一致的隐藏路径（检查进程无托盘时走逐语句相同的回退）、版本号升至 0.3.0-preview.1 后，三次全量运行出现轮换的输入类失败（overview-viewport、quick-cancel-undo、overview-size-ui、overview、mouse-routing、quick-flow、quick-input、global-quick-input、quick-activation-failure 中的不同子集），证据显示用户会话活动与检查进程自身窗口的前台竞争，属仓库已记录、暂停追查的间歇输入类。全部失败项在同一最终树上逐个单跑均通过。当日早些时候的 71/71 全量通过来自此前树，与本树的差异仅上述一行回退等价改动与版本字符串。间歇输入类不因本轮发版标记为已修复。
+
+### 人工验收第二轮（2026-10-30，工作时段用户中止）
+
+执行前核对：运行实例为发版构建（PID 202140 → 本轮内两次重启，结束时常规模式 PID 73568，版本 0.3.0-preview.1+fd09097，无调试变量）；辅助键经 settings.json 重认为 Ctrl+Shift（dragModifiers=6，首轮的 Alt+Shift 已被用户改绑），恢复键 Ctrl+Shift+Z、排布 Ctrl+Shift+1、总览 Ctrl+Shift+2、面板 Ctrl+Alt+Space；鼠标主次键交换确认（SM_SWAPBUTTON=True）；双屏 2560×1440×2，per-monitor aware 探针实测两屏同为 96 DPI/100%（混合 DPI 变体记未运行：环境不符）。
+
+拖动清单结果：#7 通过（按用户澄清的 B 口径——恢复到拖动开始那一刻的普通几何，非重新最大化；用户以屏 1 ChatGPT Chrome 窗口实测，调试日志 16:34:11/16:34:19 两次 commit=True，恢复后 normal 状态）；#11 通过（最终停在 PaneSet 分区格，确认观察到与 Windows 自身贴边的短暂竞争，形态未展开）；#8 通过（用户观察级——绕屏拖动后恢复到拖动起点，无拖前量化基线，恢复后 UIA 读数 1273,40→2567,1447；量化精度比对并入 #14）；#5 未执行（用户判断无必要，偏好用松开辅助键退出）。#14 及其余项、托盘清单全部 8 项未执行：留后续（用户工作中止）。会话中用户反馈：#1/#2 首轮已过，Esc 取消路径用户认为无需验收（#4 路径为其偏好），已如实记录不作为验收阻塞。
+
+调试证据：PANESET_DRAG_DEBUG=1 会话（PID 151836，16:32:54–16:37:09，构建 fd09097），日志副本存于会话临时目录（不入仓库）；结束后实例恢复常规模式。探针侧发现：WINDOWPLACEMENT 的 PowerShell P/Invoke 编组在该环境返回乱值，窗口几何与状态改用 UIAutomation（BoundingRectangle + WindowPattern.WindowVisualState）可靠读取。
+
+记录侧同步：pointer-window-placement/ 与 reference-window-placement/ 全目录按 wontfix/superseded 归档（对应功能随 fd09097 移除，旧人工验收结论失效）；.scratch/README.md 基线行、单窗放置行、回归段更新为发版后事实（62 PASS 保留为历史）；真实任务试用材料（trial-plan/results/TRIAL）基线重定为 fd09097，T3 的 PaneSet 路径改为拖动投放，历史记录未改写。间歇输入类与混合 DPI 缺口不变。
+
+### 信任链与健壮性第一批（2026-11-17，随 f4aef49 提交）
+
+来源：docs/POSITIONING-REVIEW.md 行动清单 A 梯队（A1–A6）。A7（去 A/B 内部代号）未做，留待文案批次。
+
+- A1 全局异常兜底：App 注册 DispatcherUnhandledException（写 %LOCALAPPDATA%\PaneSet\error.log，256KB 轮转 .old；主窗存活时 e.Handled=true 保进程，托盘气泡 best-effort 且 60 秒限频）+ AppDomain.UnhandledException 只记日志。探针注入验证：Dispatcher 抛 InvalidOperationException 后日志落盘（时间戳+完整堆栈）、进程存活、正常退出。气泡走 NIF_INFO，NotifyIconData 补齐 dwState/dwStateMask/uTimeout union/dwInfoFlags/guidItem/szInfoTitle 的完整 shellapi 布局（复审抓到初版编组字段错位，已修正并经 tray-presence 检查回归）。
+- A2 known 字典惰性清理：ListWindows 在 EnumWindows 后剔除 !IsWindow 的死键（destroy 钩子依赖 UI 线程消息泵，丢事件时防无界增长）。enumeration 检查（身份语义钉死）通过。
+- A3 溢出 catch 扩展：4 处 catch (ArgumentOutOfRangeException) 扩为同时接 OverflowException（MainWindow.UpdatePreview、DragPlacementMonitor.Zones、DragPlacementOverlay、OverviewSelection），关闭 LayoutEngine checked 溢出叠加 H1 的崩溃面。
+- A4 可见浮条：整组排布成功后面板收起时在目标屏弹“已排布 N 扇 · <恢复键> 一键复原”（键名实时取自绑定，不硬编码）；面板隐藏时 Ctrl+Alt+Z 恢复成功也弹“已恢复 N 扇原位”。实现复用 PlacementFeedback 文本模式（4.5s）；浮条在 CollapseToTray 之后创建（Collapse 会 Dispose 旧浮条，顺序是关键）。
+- A5 恢复点预告：UndoButton 文案动态化——整组“恢复上次排布（N 扇）”、单窗投放“恢复上次投放（<标题 20 字>）”，ToolTip 同步说明覆盖关系。AutomationProperties.Name 保持“恢复上次排布”不变，检查按 UIA 名精确匹配不受 Content 变化影响。
+- A6 退出守卫：退出时若存在未消费恢复记录，在 pending 确认之后追加确认框（“退出后将无法用 <恢复键> 复原上次排布（N 扇窗口）。仍要退出？”），默认 No。
+
+验证：Debug 构建 0 警告 0 错误。逐项检查通过：arrange、restore、recent-group、tray-presence、single-instance、shortcuts、enumeration、drag-placement。appearance 两次失败均为同一环境性原因（Chrome 持有前台，注入守卫拒绝，PreparePickerHost 阶段即失败，未触达本轮改动路径），符合 AGENTS.md 记录的交互会话环境性失败，不作为回归证据；浮条与动态按钮文案的实际观感属人工验收范围，未运行。
+
+未验证边界：error.log 轮转、60 秒限频重复行为、浮条 4.5 秒时序在真实排布后的观感未实机验证（需要运行新构建的实例，当前用户实例仍为旧构建）；气泡编组与发送已用 --probe 探针在实机闭环（Marshal.SizeOf=968 断言、托盘创建、NIM_MODIFY+NIF_INFO 返回 true、气泡真实显示 3.5 秒，探针代码已移除）。混合 DPI、间歇输入类缺口不变。
