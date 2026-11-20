@@ -587,4 +587,4 @@ B 入口收起改为与托盘一致的隐藏路径（检查进程无托盘时走
 - 坑①：vpk 产物 RELEASES-win-x64 带渠道后缀，UpdateManager/SimpleFileSource 只认无后缀 RELEASES——本地 feed 布局须补无后缀副本。坑②：Update.exe 1.2.x 无 --download/--update 动词（Squirrel 旧物），下载职责在应用内 UpdateManager，Update.exe 只管 apply/start/uninstall。
 - 检查：settings-ui/startup-registration/single-instance/arrange/tray-presence 全绿。
 - 未实机验证：应用内「检查更新」按钮全流程（需安装版实例 UI 交互，交互会话 UIA 前台抢占不稳定）；登录自启静默折叠需真实重启 Windows 验证。当前运行实例为安装版 preview.2（e95931c 树打包），终版 e85d4f2 包已铺 feed 供下次升级验证。
-- 复审补丁（9937f74）：卸载残留——Velopack 卸载不清应用自写的 HKCU Run 值，挂 OnBeforeUninstallFastCallback 清除；single-instance/startup-registration/settings-ui 复归绿。OnBeforeUninstallFastCallback 的实际触发属卸载路径，未实机执行（保留为卸载演练项）。
+- 复审补丁（9937f74）：卸载残留——Velopack 卸载不清应用自写的 HKCU Run 值，挂 OnBeforeUninstallFastCallback 清除；single-instance/startup-registration/settings-ui 复归绿。卸载演练实机闭环（preview.3/2c50fe4 包）：Update.exe uninstall --silent 后进程退、安装目录删、**Run 键被钩子清除**、卸载条目消、开始菜单快捷方式除，五项全净；随后 Setup /silent 重装还原（注意：卸载会连带清掉 %LOCALAPPDATA%\PaneSet\dist feed，重装后需重铺）。preview.3 为当前运行版本。
