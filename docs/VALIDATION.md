@@ -577,3 +577,13 @@ B 入口收起改为与托盘一致的隐藏路径（检查进程无托盘时走
 验证（Debug 构建 0 警告 0 错误）：arrange/restore/three-window/cross-monitor/grid-windows/maximized/partial-failure/recent-group/quick-flow/overview/ui/shortcut-routing 全部通过。local-layout-keys 两次失败同签名（foreground=Chrome_WidgetWin_1 抢占，合成键盘注入被环境拒绝，focus=MainWindow），属 AGENTS.md 记录的交互会话环境性输入失败，与本批改动路径无关（本批未触及局部布局键路径）。
 
 未验证边界：混合 DPI 实机行为（环境不符，同前）；提权窗口文案需真实管理员窗口 fixture（提权进程 fixture 成本高，维持文档化设计边界）；CountMinimized 计数含其他虚拟桌面外的全部连接屏（与主列表候选范围一致性依赖 Eligible 同形过滤，未单测）。
+
+### 开机自启与 Velopack 安装器（2026-11-20，6ca47ab/e95931c/e85d4f2）
+
+- P1 开机自启：StartupRegistration（HKCU Run，值带 --startup）+ App 静默启动折叠 + 设置页「启动」开关（含未启用时的自救提示文案）。startup-registration 检查覆盖注册表往返与 UI 联动（finally 恢复预存值）。教训：WPF UIA Toggle() 只翻 IsChecked 不发 Click 路由事件，检查需复刻"置状态+发 Click"完整序列。
+- P2 Velopack：csproj 引包 + App 首行钩子（非安装副本惰性）；设置页「更新」区块（SimpleFileSource → %LOCALAPPDATA%\PaneSet\dist，feed 固定安装根旁不随 current 轮换）；tools/package.ps1（publish → vpk pack → Setup.exe/nupkg/Portable.zip/RELEASES/sha256，沿用 dist 命名）。
+- vpk 部署形态：NuGet tool 通道在本机不可用（拉包超时），改从 GitHub release 的 vpk.1.2.161.nupkg 解包，%USERPROFILE%\vpk-extract 由本地 dotnet 驱动。1.2.x CLI 变更：无 --installArgs/--rootDir/--noPdb（pdb 由默认 --exclude 排除；instLocation 枚举 Either/None/PerMachine）。
+- 闭环实测：①Setup.exe /silent 安装 → %LOCALAPPDATA%\PaneSet（current/packages）+ HKCU 卸载条目 + 开始菜单快捷方式 + 自动拉起；②升级：Update.exe apply --waitPid -p <nupkg> → current 轮换 → 新版本元数据确认（preview.1→preview.2 实证）。
+- 坑①：vpk 产物 RELEASES-win-x64 带渠道后缀，UpdateManager/SimpleFileSource 只认无后缀 RELEASES——本地 feed 布局须补无后缀副本。坑②：Update.exe 1.2.x 无 --download/--update 动词（Squirrel 旧物），下载职责在应用内 UpdateManager，Update.exe 只管 apply/start/uninstall。
+- 检查：settings-ui/startup-registration/single-instance/arrange/tray-presence 全绿。
+- 未实机验证：应用内「检查更新」按钮全流程（需安装版实例 UI 交互，交互会话 UIA 前台抢占不稳定）；登录自启静默折叠需真实重启 Windows 验证。当前运行实例为安装版 preview.2（e95931c 树打包），终版 e85d4f2 包已铺 feed 供下次升级验证。
