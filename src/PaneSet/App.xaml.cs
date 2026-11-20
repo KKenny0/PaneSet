@@ -14,7 +14,12 @@ public partial class App : Application
     {
         // Velopack lifecycle hook (install/update/uninstall bookkeeping); must precede all
         // other startup work. Inert when the app is not Velopack-installed (e.g. repo builds).
-        Velopack.VelopackApp.Build().Run();
+        // On uninstall the launcher only removes its own directory tree and shortcuts -- the
+        // autostart Run value is ours, so clear it here or Windows fails silently at every
+        // login after uninstall.
+        Velopack.VelopackApp.Build()
+            .OnBeforeUninstallFastCallback(_ => StartupRegistration.Apply(false, StartupRegistration.ExePath()))
+            .Run();
         base.OnStartup(e);
         if (e.Args.Contains("--probe"))
         {
