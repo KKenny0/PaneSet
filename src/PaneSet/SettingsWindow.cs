@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
@@ -43,6 +44,7 @@ internal sealed class SettingsWindow : Window
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 14) });
         body.Children.Add(notice); notice.Text = shortcuts?.Notice ?? "此检查窗口未启用全局注册。";
         body.Children.Add(CreateStartupRow());
+        body.Children.Add(CreateUpdateRow());
         body.Children.Add(new TextBlock { Text = "快捷键", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, Margin = new Thickness(0, 14, 0, 8) });
         body.Children.Add(new TextBlock { Text = "拖动投放：按住下方辅助键拖动窗口，划过屏幕上的分区后松手；不需要时不影响普通拖动。",
             Foreground = UiPalette.Muted, TextWrapping = TextWrapping.Wrap, LineHeight = 20, Margin = new Thickness(0, 0, 0, 12) });
@@ -52,6 +54,42 @@ internal sealed class SettingsWindow : Window
         body.Children.Add(new Border { Background = UiPalette.Slate, CornerRadius = new CornerRadius(10), Padding = new Thickness(14), Child =
             new TextBlock { Text = "Alt+1 等宽 · Alt+2 主辅 · Alt+3 网格\nCtrl+F 搜索 · Alt+S 轮换\nEnter 确认 · Esc 收起面板 / 取消快速选窗", Foreground = UiPalette.Ink, TextWrapping = TextWrapping.Wrap, LineHeight = 24 } });
         ThemedChrome.Install(this);
+    }
+    private FrameworkElement CreateUpdateRow()
+    {
+        var row = new StackPanel();
+        row.Children.Add(new TextBlock { Text = "更新", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, FontSize = 15 });
+        var status = new TextBlock { Text = "从 dist 目录检查新版本；仅 Velopack 安装的副本支持应用内更新。",
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 9), Foreground = UiPalette.Muted, FontSize = 12 };
+        row.Children.Add(status);
+        var buttons = new WrapPanel();
+        var check = new Button { Content = "检查更新", Padding = new Thickness(12, 6, 12, 6), MinHeight = 32 };
+        AutomationProperties.SetName(check, "检查更新");
+        buttons.Children.Add(check); row.Children.Add(buttons);
+        check.Click += async (_, _) =>
+        {
+            check.IsEnabled = false;
+            try
+            {
+                // Fixed local feed beside the Velopack install root (NOT next to the exe:
+                // the exe lives under \current\ which gets rotated on every update).
+                var source = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PaneSet", "dist");
+                if (!Directory.Exists(source)) { status.Text = "未找到本地更新源（%LOCALAPPDATA%\\PaneSet\\dist）；开发构建请直接运行新版本。"; return; }
+                var manager = new Velopack.UpdateManager(new Velopack.Sources.SimpleFileSource(new DirectoryInfo(source)));
+                if (!manager.IsInstalled) { status.Text = "当前副本不是安装版，无法应用内更新。"; return; }
+                var update = await manager.CheckForUpdatesAsync();
+                if (update == null) { status.Text = "已是最新版本。"; return; }
+                status.Text = $"发现新版本，正在下载…";
+                await manager.DownloadUpdatesAsync(update);
+                status.Text = "已下载，重启 PaneSet 后生效。";
+                notice.Text = "更新已就绪：下次启动 PaneSet 自动切换到新版本。";
+            }
+            catch (Exception e) { status.Text = "检查更新失败：" + e.Message; }
+            finally { check.IsEnabled = true; }
+        };
+        return new Border { Child = row, Background = UiPalette.Surface, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12), Padding = new Thickness(14), Margin = new Thickness(0, 0, 0, 9) };
     }
     private FrameworkElement CreateStartupRow()
     {

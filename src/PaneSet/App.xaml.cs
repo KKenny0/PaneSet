@@ -12,6 +12,9 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // Velopack lifecycle hook (install/update/uninstall bookkeeping); must precede all
+        // other startup work. Inert when the app is not Velopack-installed (e.g. repo builds).
+        Velopack.VelopackApp.Build().Run();
         base.OnStartup(e);
         if (e.Args.Contains("--probe"))
         {

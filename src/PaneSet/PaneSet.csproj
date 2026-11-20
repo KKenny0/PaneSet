@@ -13,4 +13,8 @@
     <Resource Include="Assets\PaneSet.ico" />
     <Resource Include="Assets\Brand.png" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Velopack: install/update lifecycle. Hook must run before any other startup code. -->
+    <PackageReference Include="Velopack" Version="0.*" />
+  </ItemGroup>
 </Project>
