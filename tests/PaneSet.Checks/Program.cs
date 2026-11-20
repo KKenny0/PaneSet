@@ -299,6 +299,7 @@ internal static partial class Program
         ("screen-eligibility", CheckScreenEligibility),
         ("screen-member-move", CheckScreenMemberMove),
         ("settings-ui", CheckSettingsUi),
+        ("startup-registration", CheckStartupRegistration),
         ("shortcut-settings", CheckShortcutSettings),
         ("settings-replace", CheckSettingsReplace),
         ("settings-cleanup", CheckSettingsCleanup),

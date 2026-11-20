@@ -565,6 +565,19 @@ public partial class MainWindow : Window
         if (tray?.Created == true) { dragFeedback?.Dispose(); Hide(); }
         else WindowState = System.Windows.WindowState.Minimized;
     }
+    /// Boot-launch entry: wait for SourceInitialized (tray hook installed) before collapsing so
+    /// the very first CollapseToTray has a live tray to hide into.
+    internal void StartupCollapse()
+    {
+        if (closed) return;
+        if (tray != null || trayEnabled == false) { CollapseToTray(); return; }
+        void Handler(object? sender, EventArgs args)
+        {
+            SourceInitialized -= Handler;
+            if (!closed) CollapseToTray();
+        }
+        SourceInitialized += Handler;
+    }
     private void OpenFromTray()
     {
         if (closed) return;

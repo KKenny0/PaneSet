@@ -42,6 +42,7 @@ internal sealed class SettingsWindow : Window
         body.Children.Add(new Border { Child = themePicker, Background = UiPalette.Panel, BorderBrush = UiPalette.Line,
             BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(8), Padding = new Thickness(12), Margin = new Thickness(0, 0, 0, 14) });
         body.Children.Add(notice); notice.Text = shortcuts?.Notice ?? "此检查窗口未启用全局注册。";
+        body.Children.Add(CreateStartupRow());
         body.Children.Add(new TextBlock { Text = "快捷键", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, Margin = new Thickness(0, 14, 0, 8) });
         body.Children.Add(new TextBlock { Text = "拖动投放：按住下方辅助键拖动窗口，划过屏幕上的分区后松手；不需要时不影响普通拖动。",
             Foreground = UiPalette.Muted, TextWrapping = TextWrapping.Wrap, LineHeight = 20, Margin = new Thickness(0, 0, 0, 12) });
@@ -51,6 +52,34 @@ internal sealed class SettingsWindow : Window
         body.Children.Add(new Border { Background = UiPalette.Slate, CornerRadius = new CornerRadius(10), Padding = new Thickness(14), Child =
             new TextBlock { Text = "Alt+1 等宽 · Alt+2 主辅 · Alt+3 网格\nCtrl+F 搜索 · Alt+S 轮换\nEnter 确认 · Esc 收起面板 / 取消快速选窗", Foreground = UiPalette.Ink, TextWrapping = TextWrapping.Wrap, LineHeight = 24 } });
         ThemedChrome.Install(this);
+    }
+    private FrameworkElement CreateStartupRow()
+    {
+        var row = new StackPanel();
+        row.Children.Add(new TextBlock { Text = "启动", FontWeight = FontWeights.SemiBold, Foreground = UiPalette.Ink, FontSize = 15 });
+        var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 9), Foreground = UiPalette.Muted, FontSize = 12 };
+        row.Children.Add(status);
+        var enabled = new CheckBox { Content = "登录 Windows 后自动启动（最小化到托盘）", VerticalAlignment = VerticalAlignment.Center, Foreground = UiPalette.Ink };
+        AutomationProperties.SetName(enabled, "开机自启");
+        row.Children.Add(enabled);
+        void Refresh()
+        {
+            string exe = StartupRegistration.ExePath();
+            if (exe.Length == 0) { enabled.IsChecked = false; enabled.IsEnabled = false; status.Text = "无法确定程序路径，开机自启不可用。"; return; }
+            bool on = StartupRegistration.IsRegistered(exe);
+            enabled.IsChecked = on;
+            status.Text = on ? $"已注册：登录后自动在后台运行，快捷键立即可用。" : "未启用：登录后按快捷键无反应时，请先从托盘或开始菜单启动 PaneSet。";
+        }
+        enabled.Click += (_, _) =>
+        {
+            string exe = StartupRegistration.ExePath();
+            string error = StartupRegistration.Apply(enabled.IsChecked == true, exe);
+            notice.Text = error.Length == 0 ? (enabled.IsChecked == true ? "开机自启已启用。" : "开机自启已关闭。") : error;
+            Refresh();
+        };
+        Refresh();
+        return new Border { Child = row, Background = UiPalette.Surface, BorderBrush = UiPalette.Line, BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12), Padding = new Thickness(14), Margin = new Thickness(0, 0, 0, 9) };
     }
     private FrameworkElement CreateDragModifierRow()
     {

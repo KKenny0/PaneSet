@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using PaneSet;
 
@@ -39,6 +40,60 @@ internal static partial class Program
             finally { settings.Close(); }
         }
         finally { window.Exit(); }
+    }
+
+    /// Autostart toggle round-trip: registry value written/cleared with the --startup argument,
+    /// and the settings UI reflects the live state. Uses the real HKCU Run key but always
+    /// restores the pre-existing value (usually absent) in finally.
+    private static async Task CheckStartupRegistration()
+    {
+        const string runKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        string? previous = (Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runKey)?.GetValue("PaneSet")) as string;
+        try
+        {
+            string exe = StartupRegistration.ExePath();
+            Equal(false, string.IsNullOrEmpty(exe));
+            Equal("", StartupRegistration.Apply(true, exe));
+            Equal(true, StartupRegistration.IsRegistered(exe));
+            var command = (Microsoft.Win32.Registry.CurrentUser.OpenSubKey(runKey)?.GetValue("PaneSet")) as string;
+            Equal(true, command != null && command.Contains("--startup") && command.Contains(exe));
+            // UI reflects the registered state.
+            await using var fixture = await Fixture.Start();
+            using var manager = new WindowManager();
+            var display = WindowManager.DisplayFor(fixture.Handles[0]);
+            var targets = manager.ListWindows().Where(t => fixture.Handles.Contains(t.Handle)).ToArray();
+            var window = new MainWindow(manager, display, targets, settingsPath: TestSettingsPath);
+            window.Show(); await Task.Delay(120);
+            try
+            {
+                Invoke(ButtonNamed(window, "设置"));
+                await Until(() => Application.Current.Windows.Cast<Window>().Any(w => w is SettingsWindow));
+                var settings = Application.Current.Windows.Cast<Window>().OfType<SettingsWindow>().Single();
+                try
+                {
+                    var toggle = Elements<CheckBox>(settings).Single(c => AutomationProperties.GetName(c) == "开机自启");
+                    Equal(true, toggle.IsChecked);
+                    // UIA Toggle() only flips IsChecked without raising the Click routed event
+                    // (WPF quirk); a real user click does both, so replicate that sequence.
+                    toggle.IsChecked = false;
+                    toggle.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent, toggle));
+                    Equal(false, StartupRegistration.IsRegistered(exe));
+                }
+                finally { settings.Close(); }
+                // Re-enable then disable through Apply to cover both directions outside UI.
+                Equal("", StartupRegistration.Apply(true, exe));
+                Equal(true, StartupRegistration.IsRegistered(exe));
+                Equal("", StartupRegistration.Apply(false, exe));
+                Equal(false, StartupRegistration.IsRegistered(exe));
+            }
+            finally { window.Exit(); }
+        }
+        finally
+        {
+            // Restore whatever was there before the check ran (normally nothing).
+            if (previous is null) StartupRegistration.Apply(false, StartupRegistration.ExePath());
+            else Microsoft.Win32.Registry.CurrentUser.CreateSubKey(runKey)!.SetValue("PaneSet", previous);
+        }
     }
 
     private static async Task CheckScreenGuard()

@@ -24,6 +24,10 @@ public partial class App : Application
         reopen = new EventWaitHandle(false, EventResetMode.AutoReset, "Local\\PaneSet.Reopen");
         instance = new Mutex(true, "Local\\PaneSet.Instance", out bool first);
         if (!first) { reopen.Set(); Shutdown(0); return; }
+        // --startup comes from the autostart Run key: skip the foreground-capture dance and
+        // start minimized to the tray so a login launch never steals focus from the user's
+        // session. Falls back to a hidden panel when no tray icon is available.
+        bool startupLaunch = e.Args.Contains("--startup", StringComparer.OrdinalIgnoreCase);
         // Last-resort handler for exceptions that escape the UI thread (timer ticks, routed
         // events, async void continuations). Without this a single stray exception kills the
         // process: tray gone, restore records gone, drag placement silently dead.
@@ -51,6 +55,10 @@ public partial class App : Application
             if (!candidates.Any(t => t.Handle == foreground)) display = WindowManager.DisplayFor(0);
             var window = new MainWindow(manager, display, candidates, foreground);
             window.Show();
+            if (startupLaunch)
+                // SourceInitialized has run (tray created); collapsing right after Show keeps
+                // the HWND alive without a visible flash of the panel at login.
+                window.StartupCollapse();
             reopenTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(150), DispatcherPriority.Normal,
                 (_, _) => { if (reopen.WaitOne(0)) window.OpenForForeground(WindowManager.Foreground, toggle: false); }, Dispatcher);
         }
