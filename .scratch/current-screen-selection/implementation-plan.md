@@ -2,14 +2,16 @@
 
 依据：[实施规格](spec.md)。用户已授权按三个增量实施；正式任务仍一项一文件，继续使用本地 Markdown 跟踪。
 
+当前状态（2026-10-15）：设置、A/B、统一总览及选择规则集中已实现；本机已安排的人工清单已通过。Windows 11、混合 DPI 等剩余覆盖由 [10 稳定性收尾](issues/10-stability-validation.md)跟踪，历史 quick-input 调查暂停。旧网页原型与标记问题按方案替代归档。全部当前待办与可选架构维护见[任务索引](../README.md)。
+
 | 增量 | 任务 | 状态 |
 | --- | --- | --- |
 | 设置入口与全局配置 | [02](issues/02-shortcut-settings.md) | 已实现，配置事务及 UI 检查通过。 |
 | A 与共享本屏保护 | [03](issues/03-arrange-current-screen.md) | 已实现，主副屏、部分影响及恢复检查通过。 |
 | B 原生选窗 | [04](issues/04-native-quick-selection.md) | 前轮已实现；标记呈现被增量 07 总览替代，历史证据保留。 |
-| B 统一网格总览 | [07](issues/07-native-window-overview.md) | 已接入，受控 DWM/流程有通过记录；最终输入回归受锁屏阻挡，全部失败保留。 |
+| B 统一网格总览 | [07](issues/07-native-window-overview.md) | 已实现；DWM、流程、选择规则集中及后续验收已有记录，当前环境缺口见任务 10。 |
 
-前轮完整 49 项回归有 local-layout-keys 前台等待失败和 3 项已占用入口未执行。当前新增 [07 原生统一网格总览](issues/07-native-window-overview.md)，DWM 与总览定向检查已有通过记录；最新 51 项完整运行是 38 PASS / 13 FAIL，详见[验收记录](../../docs/VALIDATION.md)。
+历史基线：前轮完整 49 项回归有 local-layout-keys 前台等待失败和 3 项已占用入口未执行。当前新增 [07 原生统一网格总览](issues/07-native-window-overview.md)，DWM 与总览定向检查已有通过记录；最新 51 项完整运行是 38 PASS / 13 FAIL，详见[验收记录](../../docs/VALIDATION.md)。
 
 ## 02：设置入口与已有全局快捷键配置
 
@@ -71,4 +73,4 @@ Blocked by: 02, 03
 
 三个增量已按上述依赖实施，共用原生操作与恢复记录。默认组合键、配置及焦点规则用于当前实现；用户明确接受的 B 每次选择/Enter/Esc 与受控检查、人工实机结论分别记录。
 
-本轮未提交、推送或发布，也不将原型外观认可视作真实 Windows 验收通过。
+前轮交付记录：本轮未提交、推送或发布，也不将原型外观认可视作真实 Windows 验收通过。后续提交与实测状态以任务 10 和验收记录顶部为准。

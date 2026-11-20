@@ -1,7 +1,13 @@
 # 01：验证本屏快速选窗交互
 
-Status: needs-info
-Progress: in-progress
+Status: wontfix
+Progress: superseded
+
+## 当前结论（2026-10-15）
+
+本任务因后续原生方案替代而归档。网页模拟与外观方向认可已有记录，逐场景人工体验没有完成，原验收项保持未勾选。后续已完成 [04 原生选窗](04-native-quick-selection.md)与 [07 统一网格总览](07-native-window-overview.md)，本机人工验收及环境缺口由 [10 稳定性收尾](10-stability-validation.md)跟踪。
+
+不再等待旧网页原型反馈来阻塞开发；真实任务效率留给后续试用。下面保留当时目标与证据。
 
 ## What to build
 

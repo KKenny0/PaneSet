@@ -1,8 +1,13 @@
-Status: ready-for-human
-Progress: native-acceptance-pending
-Blocked by: 对应实机环境及受控输入条件
+Status: wontfix
+Progress: superseded
+Superseded: 原 native-acceptance-pending；对应功能随 fd09097（v0.3.0-preview.1，2026-10-29）移除（PointerPlacement/PlacementWindow/PlaceAtReferenceAsync 全链路），由单窗拖动投放取代（.scratch/single-window-placement/），原生/实机验收条目随功能移除而关闭
+Blocked by: 对应实机环境及受控输入条件（历史值，随归档失效）
 
 # 02 · 指向借位的原生与实机验收
+
+## 当前结论（2026-10-30）
+
+对应功能已随 fd09097 移除并由拖动投放取代，本验收任务关闭；下列待完成条目保留作历史记录，不再执行。拖动投放的等价人工验收见 [拖动清单](../../single-window-placement/issues/01-manual-acceptance.md)。
 
 ## 来源与边界
 

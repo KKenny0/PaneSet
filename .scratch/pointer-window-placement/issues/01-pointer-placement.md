@@ -1,8 +1,13 @@
-Status: ready-for-human
-Progress: implemented; native-acceptance-transferred
-Resolution: implementation-complete; physical-acceptance-open-in-02
+Status: wontfix
+Progress: superseded
+Superseded: 原 implemented; native-acceptance-transferred（实现提交 696a540，整合提交 03008b3、47cb48b）；随 fd09097（v0.3.0-preview.1，2026-10-29）移除 PointerPlacement/PlacementWindow/PlaceAtReferenceAsync 全链路，由单窗拖动投放取代（.scratch/single-window-placement/）
+Resolution: implementation-complete; physical-acceptance-open-in-02（历史值，随归档失效）
 
 # 01 · 指向辅窗直接放置，保留手动备用入口
+
+## 当前结论（2026-10-30）
+
+本任务对应功能（指针借位与手动备用位置图入口）已随 fd09097（v0.3.0-preview.1）移除，由单窗拖动投放取代（.scratch/single-window-placement/），按 wontfix/superseded 归档；未勾选的原生/实机验收条目不再跟踪，历史 quick-input 调查维持暂停。曾实现的完整行为与证据保留在下方及 [实施记录](../implementation.md)。
 
 ## 目标
 

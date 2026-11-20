@@ -1,5 +1,6 @@
-Status: ready-for-agent
-Progress: implemented; native-input-validation-pending
+Status: wontfix
+Progress: superseded
+Superseded: 原 implemented; native-input-validation-pending；规格对应功能随 fd09097（v0.3.0-preview.1）移除（PlacementWindow/PlaceAtReferenceAsync/ReferencePositionPreview），由单窗拖动投放取代（.scratch/single-window-placement/spec.md），本文件保留作历史记录
 
 # 单窗放置：借用已有窗口的位置
 

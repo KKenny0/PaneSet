@@ -1,7 +1,15 @@
 # 多显示器与多窗快捷操作
 
 Status: ready-for-agent
-Progress: in-progress
+Progress: done
+
+## 当前结论（2026-10-15）
+
+本任务的跨屏候选、目标屏幕选择、多窗布局、恢复、快捷入口及单实例实现已完成（`d04e3a0`）；后续大列表、局部键和最近组分别见 [02](02-picker-and-layout-keys.md)、[03](03-recent-window-group.md)。Progress 表示本任务实现完成；Status 沿用本项目其他已完成实施任务的分诊标签，不表示重新等待实施。
+
+本机人工全局入口、单实例及跨屏恢复已有通过报告，证据范围见[验收记录](../../../docs/VALIDATION.md)。这些报告不改写早期按键失败，也不证明间歇故障已修复。剩余覆盖统一由[任务 10](../../current-screen-selection/issues/10-stability-validation.md)跟踪：Windows 11 与混合 DPI 待补环境；中文输入法、第三方应用尺寸约束及显示配置变化按支持范围补验；历史 quick-input 调查暂停。
+
+下面保留历次实现、检查与当时待办；其中“继续 in-progress”等描述属于历史状态。
 
 ## 用户反馈
 

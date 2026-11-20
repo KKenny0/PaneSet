@@ -1,5 +1,6 @@
-Status: ready-for-human
-Progress: implemented; native-acceptance-pending
+Status: wontfix
+Progress: superseded
+Superseded: 原 implemented; native-acceptance-pending；实施对应功能随 fd09097（v0.3.0-preview.1）移除，由单窗拖动投放取代（.scratch/single-window-placement/），本文件保留作历史记录
 
 # 指向辅窗直接放置：实施记录
 

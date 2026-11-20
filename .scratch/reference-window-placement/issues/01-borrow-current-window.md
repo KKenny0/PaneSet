@@ -1,7 +1,12 @@
-Status: ready-for-agent
-Progress: implemented; native-input-validation-pending
+Status: wontfix
+Progress: superseded
+Superseded: 原 implemented; native-input-validation-pending（见正文实现记录）；对应功能随 fd09097（v0.3.0-preview.1，2026-10-29）移除 PlacementWindow/PlaceAtReferenceAsync 全链路，由单窗拖动投放取代（.scratch/single-window-placement/）
 
 # 01 · 冷启动借用窗口位置
+
+## 当前结论（2026-10-30）
+
+本任务对应功能（参照窗口借位与位置图选择器）已随 fd09097（v0.3.0-preview.1）移除，由单窗拖动投放取代（.scratch/single-window-placement/），按 wontfix/superseded 归档；实机验收不再跟踪。实现与证据保留在下方。
 
 ## 实现
 

@@ -1,7 +1,12 @@
-Status: ready-for-agent
-Progress: implemented; visual-runtime-checked; real-input-validation-pending
+Status: wontfix
+Progress: superseded
+Superseded: 原 implemented; visual-runtime-checked; real-input-validation-pending；对应功能（位置预览）随 fd09097（v0.3.0-preview.1，2026-10-29）连同 ReferencePositionPreview 移除，由单窗拖动投放取代（.scratch/single-window-placement/）
 
 # 02 · 补齐单窗放置的实际位置预览
+
+## 当前结论（2026-10-30）
+
+对应功能已随 fd09097 移除并由拖动投放取代（拖动中直接显示分区与缩略图），本任务归档；下方保留用户报告、根因与修改记录作历史。
 
 ## 用户报告与根因
 
